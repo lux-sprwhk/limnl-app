@@ -13,6 +13,34 @@ Rules:
 
 Dream content:`;
 
+function mapOllamaModel(modelName: string): string {
+	const modelMap: Record<string, string> = {
+		'llama': 'llama3.2',
+		'mistral': 'mistral',
+		'phi': 'phi3',
+		'deepseek': 'deepseek-coder'
+	};
+	return modelMap[modelName] || modelName;
+}
+
+function mapOpenAIModel(modelName: string): string {
+	const modelMap: Record<string, string> = {
+		'gpt4-mini': 'gpt-4o-mini',
+		'gpt4-turbo': 'gpt-4-turbo',
+		'gpt4': 'gpt-4',
+		'gpt4o': 'gpt-4o'
+	};
+	return modelMap[modelName] || modelName;
+}
+
+function mapAnthropicModel(modelName: string): string {
+	const modelMap: Record<string, string> = {
+		'claude-haiku': 'claude-haiku-4.5',
+		'claude-sonnet': 'claude-sonnet-4.5'
+	};
+	return modelMap[modelName] || modelName;
+}
+
 async function generateTitleWithOllama(
 	content: string,
 	config: LLMConfig
@@ -21,7 +49,7 @@ async function generateTitleWithOllama(
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
 		body: JSON.stringify({
-			model: config.ollamaModel,
+			model: mapOllamaModel(config.ollamaModel),
 			prompt: `${TITLE_GENERATION_PROMPT}\n\n${content}`,
 			stream: false
 		})
@@ -46,7 +74,7 @@ async function generateTitleWithOpenAI(
 			Authorization: `Bearer ${config.openaiApiKey}`
 		},
 		body: JSON.stringify({
-			model: config.openaiModel,
+			model: mapOpenAIModel(config.openaiModel),
 			messages: [
 				{
 					role: 'system',
@@ -83,7 +111,7 @@ async function generateTitleWithAnthropic(
 			'anthropic-version': '2023-06-01'
 		},
 		body: JSON.stringify({
-			model: config.anthropicModel,
+			model: mapAnthropicModel(config.anthropicModel),
 			max_tokens: 20,
 			messages: [
 				{

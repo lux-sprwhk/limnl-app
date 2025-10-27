@@ -57,7 +57,7 @@
 
 	const containerStyles = css({
 		minHeight: '100vh',
-		backgroundColor: 'gray.50',
+		backgroundColor: 'bg.primary',
 		padding: '2rem'
 	});
 
@@ -77,7 +77,7 @@
 	const titleStyles = css({
 		fontSize: '3xl',
 		fontWeight: 'bold',
-		color: 'gray.900',
+		color: 'text.primary',
 		display: 'flex',
 		alignItems: 'center',
 		gap: '0.5rem'
@@ -94,12 +94,17 @@
 		padding: '0.75rem 1rem',
 		borderRadius: 'lg',
 		border: '1px solid',
-		borderColor: 'gray.300',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.primary',
 		fontSize: 'md',
 		'&:focus': {
 			outline: 'none',
-			borderColor: 'blue.500',
-			boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+			borderColor: 'border.active',
+			boxShadow: 'glow'
+		},
+		'&::placeholder': {
+			color: 'text.muted'
 		}
 	});
 
@@ -115,55 +120,57 @@
 	});
 
 	const dreamCardStyles = css({
-		backgroundColor: 'white',
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
 		borderRadius: 'lg',
 		padding: '1.5rem',
-		boxShadow: 'sm',
+		boxShadow: 'void',
 		border: '1px solid',
-		borderColor: 'gray.200',
+		borderColor: 'border.liminal',
 		cursor: 'pointer',
 		transition: 'all 0.2s',
 		'&:hover': {
-			boxShadow: 'md',
-			borderColor: 'blue.300',
-			transform: 'translateY(-2px)'
+			boxShadow: 'breakthrough',
+			borderColor: 'border.hover',
+			transform: 'translateY(-2px)',
+			backgroundColor: 'void.800'
 		}
 	});
 
 	const dreamTitleStyles = css({
 		fontSize: 'xl',
 		fontWeight: 'semibold',
-		color: 'gray.900',
+		color: 'text.primary',
 		marginBottom: '0.5rem'
 	});
 
 	const dreamDateStyles = css({
 		fontSize: 'sm',
-		color: 'gray.500',
+		color: 'text.muted',
 		marginBottom: '1rem'
 	});
 
 	const dreamContentStyles = css({
 		fontSize: 'md',
-		color: 'gray.700',
+		color: 'text.secondary',
 		lineHeight: '1.6'
 	});
 
 	const emptyStateStyles = css({
 		textAlign: 'center',
 		padding: '4rem 2rem',
-		color: 'gray.500'
+		color: 'text.secondary'
 	});
 
 	const emptyIconStyles = css({
 		margin: '0 auto 1rem',
-		color: 'gray.400'
+		color: 'text.muted'
 	});
 
 	const loadingStyles = css({
 		textAlign: 'center',
 		padding: '4rem 2rem',
-		color: 'gray.600'
+		color: 'text.secondary'
 	});
 </script>
 

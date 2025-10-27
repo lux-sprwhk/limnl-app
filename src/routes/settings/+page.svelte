@@ -3,7 +3,8 @@
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 	import type { LLMProvider } from '$lib/types/llm';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Save } from 'lucide-svelte';
+	import Select from '$lib/components/ui/Select.svelte';
+	import { Save } from 'lucide-svelte';
 
 	let config = $state({ ...llmSettings.config });
 	let saved = $state(false);
@@ -21,7 +22,7 @@
 
 	const containerStyles = css({
 		minHeight: '100vh',
-		backgroundColor: 'gray.50',
+		backgroundColor: 'bg.primary',
 		padding: '2rem'
 	});
 
@@ -30,34 +31,23 @@
 		margin: '0 auto 2rem'
 	});
 
-	const backButtonStyles = css({
-		display: 'inline-flex',
-		alignItems: 'center',
-		gap: '0.5rem',
-		color: 'gray.600',
-		fontSize: 'sm',
-		marginBottom: '1rem',
-		cursor: 'pointer',
-		'&:hover': {
-			color: 'gray.900'
-		}
-	});
 
 	const titleStyles = css({
 		fontSize: '3xl',
 		fontWeight: 'bold',
-		color: 'gray.900'
+		color: 'text.primary'
 	});
 
 	const cardStyles = css({
 		maxWidth: '800px',
 		margin: '0 auto',
-		backgroundColor: 'white',
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
 		borderRadius: 'lg',
 		padding: '2rem',
-		boxShadow: 'sm',
+		boxShadow: 'void',
 		border: '1px solid',
-		borderColor: 'gray.200'
+		borderColor: 'border.liminal'
 	});
 
 	const sectionStyles = css({
@@ -67,7 +57,7 @@
 	const sectionTitleStyles = css({
 		fontSize: 'xl',
 		fontWeight: 'semibold',
-		color: 'gray.900',
+		color: 'text.primary',
 		marginBottom: '1rem'
 	});
 
@@ -79,7 +69,7 @@
 		display: 'block',
 		fontSize: 'sm',
 		fontWeight: 'semibold',
-		color: 'gray.700',
+		color: 'text.secondary',
 		marginBottom: '0.5rem'
 	});
 
@@ -88,38 +78,28 @@
 		padding: '0.75rem',
 		borderRadius: 'md',
 		border: '1px solid',
-		borderColor: 'gray.300',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.primary',
 		fontSize: 'md',
 		'&:focus': {
 			outline: 'none',
-			borderColor: 'blue.500',
-			boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+			borderColor: 'border.active',
+			boxShadow: 'glow'
 		},
 		'&:disabled': {
-			backgroundColor: 'gray.100',
+			backgroundColor: 'void.800',
+			color: 'text.muted',
 			cursor: 'not-allowed'
-		}
-	});
-
-	const selectStyles = css({
-		width: '100%',
-		padding: '0.75rem',
-		borderRadius: 'md',
-		border: '1px solid',
-		borderColor: 'gray.300',
-		fontSize: 'md',
-		backgroundColor: 'white',
-		cursor: 'pointer',
-		'&:focus': {
-			outline: 'none',
-			borderColor: 'blue.500',
-			boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+		},
+		'&::placeholder': {
+			color: 'text.muted'
 		}
 	});
 
 	const helpTextStyles = css({
 		fontSize: 'xs',
-		color: 'gray.500',
+		color: 'text.muted',
 		marginTop: '0.25rem'
 	});
 
@@ -131,18 +111,22 @@
 
 	const successStyles = css({
 		padding: '1rem',
-		backgroundColor: 'green.50',
-		color: 'green.700',
+		backgroundColor: 'void.800',
+		color: 'breakthrough.300',
 		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'breakthrough.600',
 		marginBottom: '1rem',
 		fontSize: 'sm'
 	});
 
 	const infoBoxStyles = css({
 		padding: '1rem',
-		backgroundColor: 'blue.50',
-		color: 'blue.700',
+		backgroundColor: 'void.800',
+		color: 'text.secondary',
 		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.liminal',
 		fontSize: 'sm',
 		marginBottom: '1.5rem'
 	});
@@ -150,10 +134,6 @@
 
 <div class={containerStyles}>
 	<div class={headerStyles}>
-		<a href="/" class={backButtonStyles}>
-			<ArrowLeft size={16} />
-			Back to Home
-		</a>
 		<h1 class={titleStyles}>Settings</h1>
 	</div>
 
@@ -172,12 +152,16 @@
 
 			<div class={formGroupStyles}>
 				<label for="provider" class={labelStyles}>Provider</label>
-				<select id="provider" class={selectStyles} bind:value={config.provider}>
-					<option value="disabled">Disabled</option>
-					<option value="ollama">Ollama (Local)</option>
-					<option value="openai">OpenAI</option>
-					<option value="anthropic">Anthropic (Claude)</option>
-				</select>
+				<Select
+					id="provider"
+					bind:value={config.provider}
+					options={[
+						{ value: 'disabled', label: 'Disabled' },
+						{ value: 'ollama', label: 'Ollama (Local)' },
+						{ value: 'openai', label: 'OpenAI' },
+						{ value: 'anthropic', label: 'Anthropic (Claude)' }
+					]}
+				/>
 				<p class={helpTextStyles}>Choose your preferred LLM provider</p>
 			</div>
 
@@ -198,15 +182,18 @@
 
 				<div class={formGroupStyles}>
 					<label for="ollama-model" class={labelStyles}>Model</label>
-					<input
-						type="text"
+					<Select
 						id="ollama-model"
-						class={inputStyles}
 						bind:value={config.ollamaModel}
-						placeholder="llama3.2"
+						options={[
+							{ value: 'llama', label: 'Llama' },
+							{ value: 'mistral', label: 'Mistral' },
+							{ value: 'phi', label: 'Phi' },
+							{ value: 'deepseek', label: 'Deepseek' }
+						]}
 					/>
 					<p class={helpTextStyles}>
-						The Ollama model to use. Popular choices: llama3.2, mistral, phi3
+						Select from popular Ollama models
 					</p>
 				</div>
 			{/if}
@@ -225,21 +212,24 @@
 						Get your API key from <a
 							href="https://platform.openai.com/api-keys"
 							target="_blank"
-							class={css({ color: 'blue.600', textDecoration: 'underline' })}>platform.openai.com</a
+							class={css({ color: 'breakthrough.400', textDecoration: 'underline', '&:hover': { color: 'breakthrough.300' } })}>platform.openai.com</a
 						>
 					</p>
 				</div>
 
 				<div class={formGroupStyles}>
 					<label for="openai-model" class={labelStyles}>Model</label>
-					<input
-						type="text"
+					<Select
 						id="openai-model"
-						class={inputStyles}
 						bind:value={config.openaiModel}
-						placeholder="gpt-4o-mini"
+						options={[
+							{ value: 'gpt4-mini', label: 'GPT-4 Mini' },
+							{ value: 'gpt4-turbo', label: 'GPT-4 Turbo' },
+							{ value: 'gpt4', label: 'GPT-4' },
+							{ value: 'gpt4o', label: 'GPT-4o' }
+						]}
 					/>
-					<p class={helpTextStyles}>Default: gpt-4o-mini (fast and affordable)</p>
+					<p class={helpTextStyles}>Select your preferred OpenAI model</p>
 				</div>
 			{/if}
 
@@ -257,21 +247,22 @@
 						Get your API key from <a
 							href="https://console.anthropic.com/settings/keys"
 							target="_blank"
-							class={css({ color: 'blue.600', textDecoration: 'underline' })}>console.anthropic.com</a
+							class={css({ color: 'breakthrough.400', textDecoration: 'underline', '&:hover': { color: 'breakthrough.300' } })}>console.anthropic.com</a
 						>
 					</p>
 				</div>
 
 				<div class={formGroupStyles}>
 					<label for="anthropic-model" class={labelStyles}>Model</label>
-					<input
-						type="text"
+					<Select
 						id="anthropic-model"
-						class={inputStyles}
 						bind:value={config.anthropicModel}
-						placeholder="claude-3-5-haiku-20241022"
+						options={[
+							{ value: 'claude-haiku', label: 'Haiku (latest)' },
+							{ value: 'claude-sonnet', label: 'Sonnet (latest)' }
+						]}
 					/>
-					<p class={helpTextStyles}>Default: claude-3-5-haiku-20241022 (fast and affordable)</p>
+					<p class={helpTextStyles}>Choose between Haiku (fast and affordable) or Sonnet (more capable)</p>
 				</div>
 			{/if}
 		</div>

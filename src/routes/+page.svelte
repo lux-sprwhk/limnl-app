@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { css } from '../../styled-system/css';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { Moon, BookOpen, Settings } from 'lucide-svelte';
+	import { Moon, BookOpen } from 'lucide-svelte';
 
 	const containerStyles = css({
 		minHeight: '100vh',
@@ -11,29 +11,32 @@
 		justifyContent: 'center',
 		padding: '2rem',
 		fontFamily: 'system-ui, sans-serif',
-		backgroundColor: 'gray.50'
+		backgroundColor: 'bg.primary'
 	});
 
 	const titleStyles = css({
 		fontSize: '4xl',
 		fontWeight: 'bold',
 		marginBottom: '0.5rem',
-		color: 'gray.900',
+		color: 'text.primary',
 		textAlign: 'center'
 	});
 
 	const subtitleStyles = css({
 		fontSize: 'xl',
-		color: 'gray.600',
+		color: 'text.secondary',
 		marginBottom: '3rem',
 		textAlign: 'center'
 	});
 
 	const cardStyles = css({
-		backgroundColor: 'white',
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
 		borderRadius: 'xl',
 		padding: '3rem',
-		boxShadow: 'lg',
+		boxShadow: 'void',
+		border: '1px solid',
+		borderColor: 'border.liminal',
 		maxWidth: '500px',
 		width: '100%',
 		textAlign: 'center'
@@ -44,7 +47,10 @@
 		width: '80px',
 		height: '80px',
 		borderRadius: 'full',
-		backgroundColor: 'blue.100',
+		backgroundColor: 'void.800',
+		border: '2px solid',
+		borderColor: 'breakthrough.500',
+		boxShadow: 'glow',
 		display: 'flex',
 		alignItems: 'center',
 		justifyContent: 'center'
@@ -52,40 +58,12 @@
 
 	const descriptionStyles = css({
 		fontSize: 'md',
-		color: 'gray.600',
+		color: 'text.secondary',
 		marginBottom: '2rem',
 		lineHeight: '1.6'
 	});
 
-	const settingsLinkStyles = css({
-		position: 'fixed',
-		top: '1.5rem',
-		right: '1.5rem',
-		display: 'inline-flex',
-		alignItems: 'center',
-		gap: '0.5rem',
-		padding: '0.75rem 1rem',
-		backgroundColor: 'white',
-		borderRadius: 'lg',
-		boxShadow: 'sm',
-		border: '1px solid',
-		borderColor: 'gray.200',
-		color: 'gray.700',
-		fontSize: 'sm',
-		fontWeight: 'medium',
-		cursor: 'pointer',
-		transition: 'all 0.2s',
-		'&:hover': {
-			backgroundColor: 'gray.50',
-			borderColor: 'gray.300'
-		}
-	});
 </script>
-
-<a href="/settings" class={settingsLinkStyles}>
-	<Settings size={20} />
-	Settings
-</a>
 
 <div class={containerStyles}>
 	<h1 class={titleStyles}>Lmnl Journal</h1>
@@ -93,10 +71,10 @@
 
 	<div class={cardStyles}>
 		<div class={iconWrapperStyles}>
-			<Moon size={48} class={css({ color: 'blue.600' })} />
+			<Moon size={48} class={css({ color: 'breakthrough.400' })} />
 		</div>
 
-		<h2 class={css({ fontSize: '2xl', fontWeight: 'semibold', marginBottom: '1rem' })}>
+		<h2 class={css({ fontSize: '2xl', fontWeight: 'semibold', marginBottom: '1rem', color: 'text.primary' })}>
 			Dream Journal
 		</h2>
 

@@ -25,6 +25,7 @@
 		'&:focus': {
 			outline: 'none',
 			ring: '2px',
+			ringColor: 'breakthrough.400',
 			ringOffset: '2px'
 		},
 		'&:disabled': {
@@ -35,25 +36,36 @@
 
 	const variantStyles = {
 		primary: css({
-			bg: 'blue.600',
-			color: 'white',
+			bg: 'breakthrough.500',
+			color: 'void.950',
+			boxShadow: 'glow',
 			'&:hover': {
-				bg: 'blue.700'
+				bg: 'breakthrough.400',
+				boxShadow: 'pulse'
+			},
+			'&:active': {
+				bg: 'breakthrough.600'
 			}
 		}),
 		secondary: css({
-			bg: 'gray.200',
-			color: 'gray.900',
+			bg: 'void.800',
+			color: 'text.primary',
+			border: '1px solid',
+			borderColor: 'border.default',
 			'&:hover': {
-				bg: 'gray.300'
+				bg: 'void.700',
+				borderColor: 'border.hover'
 			}
 		}),
 		outline: css({
 			border: '1px solid',
-			borderColor: 'gray.300',
+			borderColor: 'border.liminal',
 			bg: 'transparent',
+			color: 'text.secondary',
 			'&:hover': {
-				bg: 'gray.50'
+				bg: 'liminal.hover',
+				borderColor: 'border.hover',
+				color: 'text.accent'
 			}
 		})
 	};

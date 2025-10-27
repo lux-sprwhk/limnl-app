@@ -3,11 +3,11 @@ export type LLMProvider = 'disabled' | 'ollama' | 'openai' | 'anthropic';
 export interface LLMConfig {
 	provider: LLMProvider;
 	ollamaUrl: string; // Default: http://localhost:11434
-	ollamaModel: string; // Default: llama3.2
+	ollamaModel: string; // Default: llama
 	openaiApiKey: string;
-	openaiModel: string; // Default: gpt-4o-mini
+	openaiModel: string; // Default: gpt4-mini
 	anthropicApiKey: string;
-	anthropicModel: string; // Default: claude-3-5-haiku-20241022
+	anthropicModel: string; // Default: claude-haiku
 }
 
 export interface GenerateTitleRequest {
@@ -21,9 +21,9 @@ export interface GenerateTitleResponse {
 export const DEFAULT_LLM_CONFIG: LLMConfig = {
 	provider: 'disabled',
 	ollamaUrl: 'http://localhost:11434',
-	ollamaModel: 'llama3.2',
+	ollamaModel: 'llama',
 	openaiApiKey: '',
-	openaiModel: 'gpt-4o-mini',
+	openaiModel: 'gpt4-mini',
 	anthropicApiKey: '',
-	anthropicModel: 'claude-3-5-haiku-20241022'
+	anthropicModel: 'claude-haiku'
 };
