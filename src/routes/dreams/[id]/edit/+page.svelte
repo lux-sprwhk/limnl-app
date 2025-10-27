@@ -6,7 +6,8 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import { ArrowLeft, Save } from 'lucide-svelte';
 
-	let { id } = $props();
+	let { data } = $props();
+	const id = data.id;
 
 	let dream = $state<Dream | null>(null);
 	let title = $state('');
@@ -73,7 +74,7 @@
 
 	const containerStyles = css({
 		minHeight: '100vh',
-		backgroundColor: 'gray.50',
+		backgroundColor: 'bg.primary',
 		padding: '2rem'
 	});
 
@@ -86,30 +87,32 @@
 		display: 'inline-flex',
 		alignItems: 'center',
 		gap: '0.5rem',
-		color: 'gray.600',
+		color: 'text.secondary',
 		fontSize: 'sm',
 		marginBottom: '1rem',
 		cursor: 'pointer',
+		transition: 'color 0.2s',
 		'&:hover': {
-			color: 'gray.900'
+			color: 'text.primary'
 		}
 	});
 
 	const titleStyles = css({
 		fontSize: '3xl',
 		fontWeight: 'bold',
-		color: 'gray.900'
+		color: 'text.primary'
 	});
 
 	const formContainerStyles = css({
 		maxWidth: '800px',
 		margin: '0 auto',
-		backgroundColor: 'white',
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
 		borderRadius: 'lg',
 		padding: '2rem',
-		boxShadow: 'sm',
+		boxShadow: 'void',
 		border: '1px solid',
-		borderColor: 'gray.200'
+		borderColor: 'border.liminal'
 	});
 
 	const formGroupStyles = css({
@@ -120,7 +123,7 @@
 		display: 'block',
 		fontSize: 'sm',
 		fontWeight: 'semibold',
-		color: 'gray.700',
+		color: 'text.secondary',
 		marginBottom: '0.5rem'
 	});
 
@@ -129,12 +132,17 @@
 		padding: '0.75rem',
 		borderRadius: 'md',
 		border: '1px solid',
-		borderColor: 'gray.300',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.primary',
 		fontSize: 'md',
 		'&:focus': {
 			outline: 'none',
-			borderColor: 'blue.500',
-			boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+			borderColor: 'border.active',
+			boxShadow: 'glow'
+		},
+		'&::placeholder': {
+			color: 'text.muted'
 		}
 	});
 
@@ -143,15 +151,20 @@
 		padding: '0.75rem',
 		borderRadius: 'md',
 		border: '1px solid',
-		borderColor: 'gray.300',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.primary',
 		fontSize: 'md',
 		minHeight: '200px',
 		fontFamily: 'inherit',
 		resize: 'vertical',
 		'&:focus': {
 			outline: 'none',
-			borderColor: 'blue.500',
-			boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+			borderColor: 'border.active',
+			boxShadow: 'glow'
+		},
+		'&::placeholder': {
+			color: 'text.muted'
 		}
 	});
 
@@ -164,22 +177,24 @@
 		padding: '0.5rem 1rem',
 		borderRadius: 'md',
 		border: '1px solid',
-		borderColor: 'gray.300',
-		backgroundColor: 'white',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.secondary',
 		cursor: 'pointer',
 		transition: 'all 0.2s',
 		'&:hover': {
-			borderColor: 'blue.400'
+			borderColor: 'border.hover',
+			color: 'text.primary'
 		}
 	});
 
 	const qualityButtonActiveStyles = css({
-		backgroundColor: 'blue.500',
-		color: 'white',
-		borderColor: 'blue.500',
+		backgroundColor: 'breakthrough.900',
+		color: 'breakthrough.200',
+		borderColor: 'breakthrough.600',
 		'&:hover': {
-			borderColor: 'blue.600',
-			backgroundColor: 'blue.600'
+			borderColor: 'breakthrough.500',
+			backgroundColor: 'breakthrough.800'
 		}
 	});
 
@@ -191,9 +206,11 @@
 
 	const errorStyles = css({
 		padding: '1rem',
-		backgroundColor: 'red.50',
-		color: 'red.700',
+		backgroundColor: 'void.800',
+		color: 'text.error',
 		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.error',
 		marginBottom: '1rem',
 		fontSize: 'sm'
 	});
@@ -201,12 +218,12 @@
 	const loadingStyles = css({
 		textAlign: 'center',
 		padding: '4rem 2rem',
-		color: 'gray.600'
+		color: 'text.secondary'
 	});
 
 	const helpTextStyles = css({
 		fontSize: 'xs',
-		color: 'gray.500',
+		color: 'text.muted',
 		marginTop: '0.25rem'
 	});
 </script>

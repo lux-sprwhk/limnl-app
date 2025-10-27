@@ -66,7 +66,7 @@
 </script>
 
 <div class={containerStyles}>
-	<h1 class={titleStyles}>Lmnl Journal</h1>
+	<h1 class={titleStyles}>Limnl</h1>
 	<p class={subtitleStyles}>Your private space for self-reflection</p>
 
 	<div class={cardStyles}>
@@ -75,7 +75,7 @@
 		</div>
 
 		<h2 class={css({ fontSize: '2xl', fontWeight: 'semibold', marginBottom: '1rem', color: 'text.primary' })}>
-			Dream Journal
+			Limnl Journal
 		</h2>
 
 		<p class={descriptionStyles}>

@@ -2,6 +2,7 @@ use tauri::Manager;
 
 mod db;
 mod commands;
+mod llm;
 
 use db::Database;
 
@@ -22,6 +23,13 @@ pub fn run() {
             commands::update_dream,
             commands::delete_dream,
             commands::search_dreams,
+            commands::generate_dream_title,
+            commands::optimize_dream_description,
+            commands::create_bug,
+            commands::get_bug,
+            commands::list_bugs,
+            commands::update_bug,
+            commands::delete_bug,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

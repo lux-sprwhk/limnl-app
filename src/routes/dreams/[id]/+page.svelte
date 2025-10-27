@@ -6,7 +6,8 @@
 	import Button from '$lib/components/ui/Button.svelte';
 	import { ArrowLeft, Edit, Trash2, Calendar, Moon } from 'lucide-svelte';
 
-	let { id } = $props();
+	let { data } = $props();
+	const id = data.id;
 
 	let dream = $state<Dream | null>(null);
 	let loading = $state(true);
@@ -68,7 +69,7 @@
 
 	const containerStyles = css({
 		minHeight: '100vh',
-		backgroundColor: 'gray.50',
+		backgroundColor: 'bg.primary',
 		padding: '2rem'
 	});
 
@@ -81,24 +82,26 @@
 		display: 'inline-flex',
 		alignItems: 'center',
 		gap: '0.5rem',
-		color: 'gray.600',
+		color: 'text.secondary',
 		fontSize: 'sm',
 		marginBottom: '1rem',
 		cursor: 'pointer',
+		transition: 'color 0.2s',
 		'&:hover': {
-			color: 'gray.900'
+			color: 'text.primary'
 		}
 	});
 
 	const contentStyles = css({
 		maxWidth: '800px',
 		margin: '0 auto',
-		backgroundColor: 'white',
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
 		borderRadius: 'lg',
 		padding: '2rem',
-		boxShadow: 'sm',
+		boxShadow: 'void',
 		border: '1px solid',
-		borderColor: 'gray.200'
+		borderColor: 'border.liminal'
 	});
 
 	const titleContainerStyles = css({
@@ -112,7 +115,7 @@
 	const titleStyles = css({
 		fontSize: '3xl',
 		fontWeight: 'bold',
-		color: 'gray.900',
+		color: 'text.primary',
 		flex: '1'
 	});
 
@@ -126,9 +129,11 @@
 		flexWrap: 'wrap',
 		gap: '1.5rem',
 		padding: '1rem',
-		backgroundColor: 'gray.50',
+		backgroundColor: 'void.800',
 		borderRadius: 'md',
-		marginBottom: '2rem'
+		marginBottom: '2rem',
+		border: '1px solid',
+		borderColor: 'border.liminal'
 	});
 
 	const metaItemStyles = css({
@@ -136,13 +141,13 @@
 		alignItems: 'center',
 		gap: '0.5rem',
 		fontSize: 'sm',
-		color: 'gray.600'
+		color: 'text.secondary'
 	});
 
 	const contentTextStyles = css({
 		fontSize: 'lg',
 		lineHeight: '1.8',
-		color: 'gray.800',
+		color: 'text.primary',
 		whiteSpace: 'pre-wrap',
 		marginBottom: '2rem'
 	});
@@ -159,27 +164,39 @@
 	const footerStyles = css({
 		paddingTop: '1.5rem',
 		borderTop: '1px solid',
-		borderColor: 'gray.200',
+		borderColor: 'border.liminal',
 		fontSize: 'xs',
-		color: 'gray.500'
+		color: 'text.muted'
 	});
 
 	const loadingStyles = css({
 		textAlign: 'center',
 		padding: '4rem 2rem',
-		color: 'gray.600'
+		color: 'text.secondary'
 	});
 
 	const notFoundStyles = css({
 		textAlign: 'center',
 		padding: '4rem 2rem',
-		color: 'gray.500'
+		color: 'text.muted'
 	});
 
 	function getQualityColor(quality: number): string {
-		if (quality >= 4) return 'green';
-		if (quality >= 3) return 'yellow';
-		return 'red';
+		if (quality >= 4) return 'breakthrough';
+		if (quality >= 3) return 'liminal';
+		return 'void';
+	}
+
+	function getQualityBgShade(quality: number): string {
+		if (quality >= 4) return '900';
+		if (quality >= 3) return '700';
+		return '800';
+	}
+
+	function getQualityTextShade(quality: number): string {
+		if (quality >= 4) return '200';
+		if (quality >= 3) return '200';
+		return '300';
 	}
 
 	function getQualityLabel(quality: number): string {
@@ -200,8 +217,8 @@
 		<div class={loadingStyles}>Loading dream...</div>
 	{:else if !dream}
 		<div class={notFoundStyles}>
-			<Moon size={64} class={css({ margin: '0 auto 1rem', color: 'gray.400' })} />
-			<h2 class={css({ fontSize: 'xl', fontWeight: 'semibold', marginBottom: '0.5rem' })}>
+			<Moon size={64} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+			<h2 class={css({ fontSize: 'xl', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
 				Dream not found
 			</h2>
 			<p>This dream may have been deleted or doesn't exist.</p>
@@ -238,7 +255,7 @@
 						<span>Sleep Quality:</span>
 						<span
 							class={qualityBadgeStyles}
-							style={`background-color: var(--colors-${getQualityColor(dream.sleep_quality)}-100); color: var(--colors-${getQualityColor(dream.sleep_quality)}-700);`}
+							style={`background-color: var(--colors-${getQualityColor(dream.sleep_quality)}-${getQualityBgShade(dream.sleep_quality)}); color: var(--colors-${getQualityColor(dream.sleep_quality)}-${getQualityTextShade(dream.sleep_quality)});`}
 						>
 							{getQualityLabel(dream.sleep_quality)} ({dream.sleep_quality}/5)
 						</span>

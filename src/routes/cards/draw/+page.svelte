@@ -177,7 +177,7 @@
 			</h1>
 			<p class={questionStyles}>Ready to debug?</p>
 			<p class={subtitleStyles}>
-				Know your bug? Draw a single card for perspective. Not sure what's blocking you? Use the Blocker Surfacer to discover it.
+				Know your bug? Draw a single card for perspective. Not sure what's blocking you? Use Discover to reveal it.
 			</p>
 		</div>
 
@@ -207,15 +207,13 @@
 						<div class={spreadDescStyles}>Debug a known bug</div>
 					</button>
 
-					<div style="position: relative;">
-						<div class={disabledOverlayStyles}>
-							<button class={spreadButtonStyles}>
-								<div class={spreadTitleStyles}>Blocker Surfacer</div>
-								<div class={spreadDescStyles}>Discover hidden bugs</div>
-							</button>
-						</div>
-						<div class={comingSoonBadgeStyles}>Coming Soon</div>
-					</div>
+					<button
+						class={`${spreadButtonStyles} ${selectedSpread === 'three' ? spreadButtonSelectedStyles : ''}`}
+						onclick={() => (selectedSpread = 'three')}
+					>
+						<div class={spreadTitleStyles}>Discover</div>
+						<div class={spreadDescStyles}>Discover hidden bugs</div>
+					</button>
 				</div>
 			</div>
 
@@ -223,13 +221,17 @@
 				<Button
 					variant="primary"
 					onclick={() => {
-						// TODO: Handle card drawing
-						console.log('Drawing cards...', { userInput, selectedSpread });
+						if (selectedSpread === 'three') {
+							window.location.href = '/bugs/discover';
+						} else {
+							// TODO: Handle single card drawing
+							console.log('Drawing single card...', { userInput, selectedSpread });
+						}
 					}}
 					disabled={!selectedSpread}
 				>
 					<Sparkles size={20} />
-					{selectedSpread === 'single' ? 'Draw Card' : 'Draw Cards'}
+					{selectedSpread === 'single' ? 'Draw Card' : 'Start Discovery'}
 				</Button>
 			</div>
 		</div>

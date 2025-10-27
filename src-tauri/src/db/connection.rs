@@ -62,6 +62,32 @@ impl Database {
             [],
         )?;
 
+        // Create bugs table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS bugs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                description TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                cards_drawn TEXT,
+                conversation_history TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                resolved_at TEXT
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bugs_status ON bugs(status)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bugs_created_at ON bugs(created_at)",
+            [],
+        )?;
+
         Ok(())
     }
 
