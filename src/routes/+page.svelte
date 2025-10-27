@@ -1,13 +1,7 @@
 <script lang="ts">
 	import { css } from '../../styled-system/css';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { Rocket, Palette, Package } from 'lucide-svelte';
-
-	let count = $state(0);
-
-	const handleClick = () => {
-		count++;
-	};
+	import { Moon, BookOpen, Settings } from 'lucide-svelte';
 
 	const containerStyles = css({
 		minHeight: '100vh',
@@ -16,103 +10,104 @@
 		alignItems: 'center',
 		justifyContent: 'center',
 		padding: '2rem',
-		fontFamily: 'system-ui, sans-serif'
+		fontFamily: 'system-ui, sans-serif',
+		backgroundColor: 'gray.50'
 	});
 
-	const headerStyles = css({
-		fontSize: '3xl',
+	const titleStyles = css({
+		fontSize: '4xl',
 		fontWeight: 'bold',
-		marginBottom: '1rem',
-		color: 'gray.900'
+		marginBottom: '0.5rem',
+		color: 'gray.900',
+		textAlign: 'center'
+	});
+
+	const subtitleStyles = css({
+		fontSize: 'xl',
+		color: 'gray.600',
+		marginBottom: '3rem',
+		textAlign: 'center'
+	});
+
+	const cardStyles = css({
+		backgroundColor: 'white',
+		borderRadius: 'xl',
+		padding: '3rem',
+		boxShadow: 'lg',
+		maxWidth: '500px',
+		width: '100%',
+		textAlign: 'center'
+	});
+
+	const iconWrapperStyles = css({
+		margin: '0 auto 1.5rem',
+		width: '80px',
+		height: '80px',
+		borderRadius: 'full',
+		backgroundColor: 'blue.100',
+		display: 'flex',
+		alignItems: 'center',
+		justifyContent: 'center'
 	});
 
 	const descriptionStyles = css({
-		fontSize: 'lg',
+		fontSize: 'md',
 		color: 'gray.600',
 		marginBottom: '2rem',
-		textAlign: 'center',
-		maxWidth: '600px'
+		lineHeight: '1.6'
 	});
 
-	const featuresContainerStyles = css({
-		display: 'grid',
-		gridTemplateColumns: 'repeat(3, 1fr)',
-		gap: '2rem',
-		marginBottom: '3rem',
-		maxWidth: '900px'
-	});
-
-	const featureCardStyles = css({
-		padding: '1.5rem',
+	const settingsLinkStyles = css({
+		position: 'fixed',
+		top: '1.5rem',
+		right: '1.5rem',
+		display: 'inline-flex',
+		alignItems: 'center',
+		gap: '0.5rem',
+		padding: '0.75rem 1rem',
+		backgroundColor: 'white',
 		borderRadius: 'lg',
+		boxShadow: 'sm',
 		border: '1px solid',
 		borderColor: 'gray.200',
-		textAlign: 'center',
-		'&:hover': {
-			borderColor: 'blue.400',
-			boxShadow: 'sm'
-		}
-	});
-
-	const featureTitleStyles = css({
-		fontSize: 'lg',
-		fontWeight: 'semibold',
-		marginTop: '1rem',
-		marginBottom: '0.5rem'
-	});
-
-	const featureDescStyles = css({
+		color: 'gray.700',
 		fontSize: 'sm',
-		color: 'gray.600'
-	});
-
-	const counterStyles = css({
-		fontSize: '2xl',
-		fontWeight: 'bold',
-		color: 'blue.600',
-		marginBottom: '1rem'
-	});
-
-	const buttonGroupStyles = css({
-		display: 'flex',
-		gap: '1rem',
-		flexWrap: 'wrap',
-		justifyContent: 'center'
+		fontWeight: 'medium',
+		cursor: 'pointer',
+		transition: 'all 0.2s',
+		'&:hover': {
+			backgroundColor: 'gray.50',
+			borderColor: 'gray.300'
+		}
 	});
 </script>
 
+<a href="/settings" class={settingsLinkStyles}>
+	<Settings size={20} />
+	Settings
+</a>
+
 <div class={containerStyles}>
-	<h1 class={headerStyles}>lmnl-app</h1>
+	<h1 class={titleStyles}>Lmnl Journal</h1>
+	<p class={subtitleStyles}>Your private space for self-reflection</p>
 
-	<p class={descriptionStyles}>
-		A modern desktop application built with Tauri, SvelteKit, and Panda CSS
-	</p>
-
-	<div class={featuresContainerStyles}>
-		<div class={featureCardStyles}>
-			<Rocket size={32} class={css({ color: 'blue.600', margin: 'auto' })} />
-			<h3 class={featureTitleStyles}>Tauri</h3>
-			<p class={featureDescStyles}>Lightweight, secure desktop framework</p>
+	<div class={cardStyles}>
+		<div class={iconWrapperStyles}>
+			<Moon size={48} class={css({ color: 'blue.600' })} />
 		</div>
 
-		<div class={featureCardStyles}>
-			<Palette size={32} class={css({ color: 'purple.600', margin: 'auto' })} />
-			<h3 class={featureTitleStyles}>Panda CSS</h3>
-			<p class={featureDescStyles}>Type-safe, build-time CSS-in-JS</p>
-		</div>
+		<h2 class={css({ fontSize: '2xl', fontWeight: 'semibold', marginBottom: '1rem' })}>
+			Dream Journal
+		</h2>
 
-		<div class={featureCardStyles}>
-			<Package size={32} class={css({ color: 'green.600', margin: 'auto' })} />
-			<h3 class={featureTitleStyles}>SvelteKit</h3>
-			<p class={featureDescStyles}>Fast, reactive web framework</p>
-		</div>
-	</div>
+		<p class={descriptionStyles}>
+			Capture your dreams, track patterns, and explore the symbols of your subconscious. All your
+			entries are stored locally and privately on your device.
+		</p>
 
-	<div class={counterStyles}>Count: {count}</div>
-
-	<div class={buttonGroupStyles}>
-		<Button variant="primary" onclick={handleClick}>Increment</Button>
-		<Button variant="secondary" onclick={() => (count = 0)}>Reset</Button>
-		<Button variant="outline" onclick={() => (count--)}>Decrement</Button>
+		<Button variant="primary" size="lg" onclick={() => (window.location.href = '/dreams')}>
+			<BookOpen size={20} />
+			Open Dream Journal
+		</Button>
 	</div>
 </div>

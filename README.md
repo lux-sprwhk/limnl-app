@@ -1,6 +1,16 @@
-# lmnl-app
+# Limnl - Dream Journal
 
-A modern desktop application built with a powerful tech stack.
+A privacy-first desktop dream journal application built with Tauri and SvelteKit. Record, explore, and understand your dreams with a beautiful, local-first interface.
+
+## Features
+
+- **Privacy-First Design**: All data stored locally in SQLite database - no cloud sync, no telemetry
+- **Rich Dream Entries**: Record dreams with title, content, date, and sleep quality ratings
+- **Full-Text Search**: Search across all your dreams by title or content
+- **Complete CRUD Operations**: Create, read, update, and delete dream entries
+- **Sleep Quality Tracking**: Rate and visualize your sleep quality (1-5 scale)
+- **Modern UI**: Clean, responsive interface built with Panda CSS
+- **Desktop Native**: Fast, secure desktop application powered by Tauri
 
 ## Tech Stack
 
@@ -18,48 +28,89 @@ A modern desktop application built with a powerful tech stack.
 ## Project Structure
 
 ```
-lmnl-app/
+limnl-app/
 ├── src/
 │   ├── lib/
+│   │   ├── api/
+│   │   │   └── dreams.ts        # API client for Tauri commands
+│   │   ├── types/
+│   │   │   └── dream.ts         # TypeScript type definitions
 │   │   ├── components/
-│   │   │   └── ui/          # Reusable UI components
-│   │   └── utils/           # Utility functions
-│   ├── routes/              # SvelteKit routes
-│   └── app.css              # Global styles
-├── src-tauri/               # Tauri Rust backend
-├── styled-system/           # Generated Panda CSS files
-└── static/                  # Static assets
+│   │   │   └── ui/              # Reusable UI components (Button, etc.)
+│   │   └── utils/               # Utility functions
+│   ├── routes/
+│   │   ├── +page.svelte         # Home page
+│   │   ├── +layout.svelte       # App layout
+│   │   └── dreams/
+│   │       ├── +page.svelte            # Dreams list
+│   │       ├── new/
+│   │       │   └── +page.svelte        # Create new dream
+│   │       └── [id]/
+│   │           ├── +page.svelte        # Dream detail view
+│   │           └── edit/
+│   │               └── +page.svelte    # Edit dream
+│   └── app.css                  # Global styles
+├── src-tauri/
+│   ├── src/
+│   │   ├── db/
+│   │   │   ├── mod.rs           # Module exports
+│   │   │   ├── models.rs        # Data structures (Dream, CreateDreamInput, etc.)
+│   │   │   ├── connection.rs    # Database initialization
+│   │   │   └── dreams.rs        # CRUD operations
+│   │   ├── commands.rs          # Tauri command handlers
+│   │   ├── lib.rs               # App initialization
+│   │   └── main.rs              # Entry point
+│   └── Cargo.toml               # Rust dependencies
+├── styled-system/               # Generated Panda CSS files (DO NOT EDIT)
+└── static/                      # Static assets
 ```
 
 ## Getting Started
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) (v18+)
-- [pnpm](https://pnpm.io/) (recommended) or npm
-- [Rust](https://www.rust-lang.org/) (for Tauri)
+1. **Node.js** (v18+) and **pnpm**
+   ```bash
+   # Install pnpm if needed
+   npm install -g pnpm
+   ```
+
+2. **Rust** (for Tauri backend)
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+3. **System Dependencies** (Linux only)
+   ```bash
+   sudo apt update
+   sudo apt install libwebkit2gtk-4.1-dev \
+     build-essential \
+     curl \
+     wget \
+     file \
+     libssl-dev \
+     libayatana-appindicator3-dev \
+     librsvg2-dev
+   ```
 
 ### Installation
 
 ```bash
 # Install dependencies
 pnpm install
-
-# Generate Panda CSS
-pnpm panda codegen
 ```
 
 ### Development
 
 ```bash
-# Run in development mode (web only)
-pnpm dev
-
-# Run as Tauri desktop app
+# Run as desktop app (recommended)
 pnpm tauri:dev
+
+# Or run in web-only mode for frontend development
+pnpm dev
 ```
 
-The app will be available at `http://localhost:5173`
+**Note**: For the full dream journal experience with database access, use `pnpm tauri:dev`. The web-only mode (`pnpm dev`) won't have access to the Rust backend and SQLite database.
 
 ### Building
 
@@ -93,6 +144,77 @@ pnpm format
 # Type check
 pnpm check
 ```
+
+## Architecture
+
+### Data Flow
+
+1. User interacts with Svelte component
+2. Component calls API client function (`dreamsApi.createDream()`, etc.)
+3. API client invokes Tauri command via `@tauri-apps/api`
+4. Rust backend receives command, executes database operation
+5. Result is serialized to JSON and returned to frontend
+6. Component updates UI with new data
+
+### Database
+
+**SQLite Database** stored locally in:
+- **Linux**: `~/.local/share/limnl/limnl-journal/dreams.db`
+- **macOS**: `~/Library/Application Support/com.limnl.limnl-journal/dreams.db`
+- **Windows**: `%APPDATA%\limnl\limnl-journal\dreams.db`
+
+**Schema**:
+```sql
+CREATE TABLE dreams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date_recorded TEXT NOT NULL,      -- When the dream was recorded
+    date_occurred TEXT NOT NULL,      -- When the dream actually happened
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    emotions_tags TEXT,               -- Future: JSON array of emotion tags
+    sleep_quality INTEGER,            -- 1-5 rating
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+```
+
+**Inspect Database**:
+```bash
+# Linux
+sqlite3 ~/.local/share/limnl/limnl-journal/dreams.db
+
+# Query examples
+SELECT * FROM dreams;
+SELECT COUNT(*) FROM dreams;
+SELECT title, date_occurred FROM dreams WHERE content LIKE '%keyword%';
+```
+
+## Testing the Dream Journal
+
+### Manual Testing Workflow
+
+1. **Start the app**: `pnpm tauri:dev`
+
+2. **Navigate to Dreams**: Click "Open Dream Journal" on home page
+
+3. **Create a new dream**:
+   - Click "New Dream" button
+   - Fill in the form:
+     - Date: Today's date (or any past date)
+     - Title: "Flying Over Mountains"
+     - Content: "I was soaring above snow-capped peaks..."
+     - Sleep Quality: Select 4
+   - Click "Save Dream"
+
+4. **View dream list**: Should see your new dream in a card with truncated content
+
+5. **View dream details**: Click on a dream card to see full content and metadata
+
+6. **Edit a dream**: Click "Edit" button, modify content, save changes
+
+7. **Search functionality**: Create multiple dreams, use search box to filter by keywords
+
+8. **Delete a dream**: Open dream detail page, click "Delete", confirm deletion
 
 ## Available Scripts
 
@@ -144,6 +266,47 @@ Example:
 </Button>
 ```
 
+## Roadmap
+
+### Phase 2: LLM Integration
+- Symbol extraction from dream content
+- Pattern recognition across dreams
+- Automated insights generation
+- Dream analysis and interpretation
+
+### Phase 3: Tarot System
+- Digital tarot deck
+- Card reading spreads
+- Reading interpretation journaling
+- Integration with dream journal
+
+### Future Enhancements
+- **Emotion Tagging UI**: Visual tagging system for dream emotions
+- **Symbol Highlighting**: Automatic recognition of recurring symbols
+- **Timeline Visualization**: Visual timeline of dreams over time
+- **Export Functionality**: PDF and Markdown export
+- **Rich Text Editor**: Enhanced formatting options
+- **Encryption**: Password-protect database with SQLCipher
+- **Dark Mode**: Complete dark theme support
+- **Keyboard Shortcuts**: Power user features
+
+## Troubleshooting
+
+### Frontend builds but Tauri doesn't start
+- Ensure Rust is installed: `rustc --version`
+- Check Tauri system dependencies are installed
+- Run `pnpm tauri:dev` and check terminal for errors
+
+### Database errors
+- Check file permissions on data directory
+- Ensure SQLite is working: `sqlite3 --version`
+- Verify database location exists
+
+### Type errors in frontend
+- Run `pnpm check` to see TypeScript errors
+- Ensure `@tauri-apps/api` is installed
+- Restart TypeScript server in your editor
+
 ## Learn More
 
 - [Tauri Documentation](https://tauri.app/)
@@ -151,3 +314,11 @@ Example:
 - [Panda CSS Documentation](https://panda-css.com/docs)
 - [bits-ui Documentation](https://bits-ui.com/)
 - [Vitest Documentation](https://vitest.dev/)
+
+## License
+
+[Add your license here]
+
+---
+
+**Status**: ✅ Basic dream journal fully implemented and ready for testing!

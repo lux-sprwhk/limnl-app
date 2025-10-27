@@ -2,14 +2,17 @@
 	import { Button as BitsButton } from 'bits-ui';
 	import { css } from '../../../../styled-system/css';
 
-	interface Props {
+		interface Props {
 		variant?: 'primary' | 'secondary' | 'outline';
 		size?: 'sm' | 'md' | 'lg';
 		children?: any;
 		onclick?: () => void;
+		disabled?: boolean;
+		type?: 'button' | 'submit' | 'reset';
+		title?: string;
 	}
 
-	let { variant = 'primary', size = 'md', children, onclick }: Props = $props();
+	let { variant = 'primary', size = 'md', children, onclick, disabled = false, type = 'button', title }: Props = $props();
 
 	const baseStyles = css({
 		display: 'inline-flex',
@@ -64,6 +67,6 @@
 	const buttonClass = `${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]}`;
 </script>
 
-<BitsButton.Root class={buttonClass} {onclick}>
+<BitsButton.Root class={buttonClass} {onclick} {disabled} {type} {title}>
 	{@render children?.()}
 </BitsButton.Root>

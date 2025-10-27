@@ -25,3 +25,8 @@ vite.config.ts.timestamp-*
 ## Panda
 styled-system
 styled-system-studio
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/gen/
+src-tauri/WixTools/
