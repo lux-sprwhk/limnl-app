@@ -6,10 +6,12 @@
 	import cardsData from '../../../cards.json';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { Sparkles, Send, CheckCircle } from 'lucide-svelte';
-	import { llmSettings } from '$lib/stores/llm-settings';
+	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 	import { bugsApi } from '$lib/api/bugs';
 
+	let selectedBlock = $state<'life' | 'work' | 'creative' | 'relationship' | null>(null);
 	let drawnCards = $state<Card[]>([]);
+	let selectedCards = $state<Card[]>([]);
 	let selectedCard = $state<Card | null>(null);
 	let conversationMessages = $state<ConversationMessage[]>([]);
 	let userMessage = $state('');
@@ -17,6 +19,15 @@
 	let bugDiscovered = $state(false);
 	let discoveredBugTitle = $state('');
 	let discoveredBugDescription = $state('');
+	let cardDrawCount = $state(0);
+	const MAX_CARD_DRAWS = 3;
+
+	const BLOCKS = [
+		{ id: 'life', label: 'Life', emoji: '🌱', description: 'Personal growth, relationships, and daily living' },
+		{ id: 'work', label: 'Work', emoji: '💼', description: 'Career, projects, and professional challenges' },
+		{ id: 'creative', label: 'Creative', emoji: '🎨', description: 'Artistic pursuits, expression, and innovation' },
+		{ id: 'relationship', label: 'Relationship', emoji: '💝', description: 'Connections, communication, and intimacy' }
+	] as const;
 
 	// Styles
 	const containerStyles = css({
@@ -185,12 +196,120 @@
 		marginTop: '2rem'
 	});
 
-	// Draw 3 random cards on mount
-	onMount(() => {
+	const selectedCardDisplayStyles = css({
+		backgroundColor: 'void.800',
+		backdropFilter: 'blur(4px)',
+		borderRadius: 'lg',
+		padding: '1.5rem',
+		boxShadow: 'void',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		marginBottom: '1.5rem',
+		display: 'flex',
+		alignItems: 'center',
+		gap: '1.5rem'
+	});
+
+	const selectedCardEmojiStyles = css({
+		fontSize: '4xl',
+		minWidth: '80px',
+		textAlign: 'center'
+	});
+
+	const selectedCardInfoStyles = css({
+		flex: 1
+	});
+
+	const selectedCardNameStyles = css({
+		fontSize: 'lg',
+		fontWeight: 'semibold',
+		color: 'text.primary',
+		marginBottom: '0.5rem'
+	});
+
+	const selectedCardQuestionStyles = css({
+		fontSize: 'md',
+		color: 'text.accent',
+		fontStyle: 'italic',
+		lineHeight: '1.5'
+	});
+
+	const blockContainerStyles = css({
+		display: 'grid',
+		gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+		gap: '1.5rem',
+		marginBottom: '2rem'
+	});
+
+	const blockButtonStyles = css({
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
+		borderRadius: 'lg',
+		padding: '2rem',
+		boxShadow: 'void',
+		border: '2px solid',
+		borderColor: 'border.liminal',
+		cursor: 'pointer',
+		transition: 'all 0.3s',
+		textAlign: 'center',
+		'&:hover': {
+			borderColor: 'border.hover',
+			boxShadow: 'glow',
+			transform: 'translateY(-4px)'
+		}
+	});
+
+	const blockButtonSelectedStyles = css({
+		borderColor: 'border.active',
+		backgroundColor: 'void.700',
+		boxShadow: 'glow'
+	});
+
+	const blockEmojiStyles = css({
+		fontSize: '4xl',
+		marginBottom: '1rem'
+	});
+
+	const blockLabelStyles = css({
+		fontSize: 'lg',
+		fontWeight: 'semibold',
+		color: 'text.primary',
+		marginBottom: '0.5rem'
+	});
+
+	const blockDescriptionStyles = css({
+		fontSize: 'sm',
+		color: 'text.secondary',
+		lineHeight: '1.5'
+	});
+
+	function drawCards() {
 		const allCards = cardsData.cards;
 		const shuffled = [...allCards].sort(() => Math.random() - 0.5);
 		drawnCards = shuffled.slice(0, 3);
-	});
+		cardDrawCount += 1;
+	}
+
+	function selectBlock(block: 'life' | 'work' | 'creative' | 'relationship') {
+		selectedBlock = block;
+		drawCards();
+	}
+
+	function resetToBlockSelection() {
+		selectedBlock = null;
+		drawnCards = [];
+		selectedCard = null;
+		selectedCards = [];
+		conversationMessages = [];
+		cardDrawCount = 0;
+	}
+
+	function drawNewCards() {
+		if (cardDrawCount < 3) {
+			drawCards();
+			selectedCard = null;
+		}
+	}
 
 	function selectCard(card: Card) {
 		selectedCard = card;
@@ -198,7 +317,7 @@
 		conversationMessages = [
 			{
 				role: 'assistant',
-				content: `You've selected "${card.name}" ${card.emoji}. ${card.question}\n\nTell me, what's been on your mind lately? What feels stuck or unclear?`,
+				content: `You've selected "${card.name}" ${card.emoji}. ${card.card_question}\n\nTell me, what's been on your mind lately? What feels stuck or unclear?`,
 				timestamp: new Date().toISOString()
 			}
 		];
@@ -258,7 +377,9 @@
 				Bug Discovery
 			</h1>
 			<p class={subtitleStyles}>
-				{#if !selectedCard}
+				{#if !selectedBlock}
+					Which area of your life is the bug in?
+				{:else if !selectedCard}
 					Choose a card that resonates with you to begin uncovering what's bugging you.
 				{:else if !bugDiscovered}
 					Let's explore what's blocking you using the "{selectedCard.name}" card as our guide.
@@ -268,7 +389,20 @@
 			</p>
 		</div>
 
-		{#if !selectedCard}
+		{#if !selectedBlock}
+			<div class={blockContainerStyles}>
+				{#each BLOCKS as block (block.id)}
+					<button
+						class={`${blockButtonStyles} ${selectedBlock === block.id ? blockButtonSelectedStyles : ''}`}
+						onclick={() => selectBlock(block.id as 'life' | 'work' | 'creative' | 'relationship')}
+					>
+						<div class={blockEmojiStyles}>{block.emoji}</div>
+						<div class={blockLabelStyles}>{block.label}</div>
+						<div class={blockDescriptionStyles}>{block.description}</div>
+					</button>
+				{/each}
+			</div>
+		{:else if !selectedCard}
 			<div class={cardsContainerStyles}>
 				{#each drawnCards as card (card.id)}
 					<button
@@ -277,12 +411,20 @@
 					>
 						<div class={cardEmojiStyles}>{card.emoji}</div>
 						<div class={cardNameStyles}>{card.name}</div>
-						<div class={cardQuestionStyles}>{card.question}</div>
+						<div class={cardQuestionStyles}>{card.card_question}</div>
 						<div class={cardMeaningStyles}>{card.core_meaning}</div>
 					</button>
 				{/each}
 			</div>
 		{:else if !bugDiscovered}
+			<div class={selectedCardDisplayStyles}>
+				<div class={selectedCardEmojiStyles}>{selectedCard.emoji}</div>
+				<div class={selectedCardInfoStyles}>
+					<div class={selectedCardNameStyles}>{selectedCard.name}</div>
+					<div class={selectedCardQuestionStyles}>{selectedCard.card_question}</div>
+				</div>
+			</div>
+
 			<div class={chatContainerStyles}>
 				<div class={messagesContainerStyles}>
 					{#each conversationMessages as message}
@@ -315,9 +457,25 @@
 					</Button>
 				</div>
 
-				<div style="margin-top: 1rem; text-align: center;">
+				<div style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; align-items: center; flex-wrap: wrap;">
 					<Button
 						variant="outline"
+						onclick={resetToBlockSelection}
+					>
+						← Back to Blocks
+					</Button>
+					<Button
+						variant="outline"
+						onclick={drawNewCards}
+						disabled={cardDrawCount >= MAX_CARD_DRAWS}
+					>
+						Draw New Card
+					</Button>
+					<span style="font-size: 0.875rem; color: var(--colors-text-muted);">
+						{cardDrawCount} / {MAX_CARD_DRAWS} draws
+					</span>
+					<Button
+						variant="primary"
 						onclick={() => {
 							bugDiscovered = true;
 							discoveredBugTitle = 'Sample Bug Title';
@@ -336,10 +494,11 @@
 				</h2>
 
 				<div style="margin-bottom: 1.5rem;">
-					<label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--colors-text-secondary); margin-bottom: 0.5rem;">
+					<label for="bug-title" style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--colors-text-secondary); margin-bottom: 0.5rem;">
 						Title
 					</label>
 					<input
+						id="bug-title"
 						type="text"
 						bind:value={discoveredBugTitle}
 						class={textareaStyles}
@@ -349,10 +508,11 @@
 				</div>
 
 				<div style="margin-bottom: 1.5rem;">
-					<label style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--colors-text-secondary); margin-bottom: 0.5rem;">
+					<label for="bug-description" style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--colors-text-secondary); margin-bottom: 0.5rem;">
 						Description
 					</label>
 					<textarea
+						id="bug-description"
 						bind:value={discoveredBugDescription}
 						class={textareaStyles}
 						placeholder="Describe what you've uncovered..."

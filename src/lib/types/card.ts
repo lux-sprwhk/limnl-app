@@ -3,7 +3,7 @@
  * Cards are read-only and used for gaining insights
  */
 
-export interface BlockApplications {
+export interface LifeAreaInsights {
 	creative: string;
 	work: string;
 	life: string;
@@ -18,7 +18,7 @@ export interface Card {
 	core_meaning: string;
 	card_question: string;
 	perspective_prompts: string[];
-	block_applications: BlockApplications;
+	life_area_insights: LifeAreaInsights;
 	fortune_cookie: string;
 	reversed_meaning: string;
 	tags: string[];
