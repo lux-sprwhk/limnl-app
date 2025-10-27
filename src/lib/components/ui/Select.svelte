@@ -50,6 +50,11 @@
 		zIndex: 50
 	});
 
+	const viewportStyles = css({
+		maxHeight: '300px',
+		overflowY: 'auto'
+	});
+
 	const itemStyles = css({
 		padding: '0.75rem',
 		cursor: 'pointer',
@@ -73,7 +78,7 @@
 	</Select.Trigger>
 	<Select.Portal>
 		<Select.Content class={contentStyles}>
-			<Select.Viewport>
+			<Select.Viewport class={viewportStyles}>
 				{#each options as option (option.value)}
 					<Select.Item value={option.value} label={option.label} class={itemStyles}>
 						{option.label}

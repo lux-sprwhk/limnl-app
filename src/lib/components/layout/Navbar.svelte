@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { css } from '../../../../styled-system/css';
-	import { Moon, Settings, HelpCircle } from 'lucide-svelte';
+	import { Moon, Sparkles, Bug, Settings, HelpCircle } from 'lucide-svelte';
 	import { page } from '$app/stores';
 
 	// Check if a link is active
@@ -98,6 +98,20 @@
 		>
 			<Moon size={20} />
 			<span>Dreams</span>
+		</a>
+		<a
+			href="/cards/list"
+			class={`${navLinkStyles} ${isActive('/cards') ? navLinkActiveStyles : ''}`}
+		>
+			<Sparkles size={20} />
+			<span>Cards</span>
+		</a>
+		<a
+			href="/bugs"
+			class={`${navLinkStyles} ${isActive('/bugs') ? navLinkActiveStyles : ''}`}
+		>
+			<Bug size={20} />
+			<span>Bug Tracker</span>
 		</a>
 	</div>
 

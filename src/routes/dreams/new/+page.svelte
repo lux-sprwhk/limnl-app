@@ -4,17 +4,24 @@
 	import { llmApi } from '$lib/api/llm';
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 	import type { CreateDreamInput } from '$lib/types/dream';
+	import { RECURRENCE_TIME_PERIODS } from '$lib/types/dream';
 	import Button from '$lib/components/ui/Button.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 	import { ArrowLeft, Save, Sparkles } from 'lucide-svelte';
 
 	let title = $state('');
 	let content = $state('');
 	let dateOccurred = $state(new Date().toISOString().split('T')[0]);
 	let sleepQuality = $state<number | undefined>(undefined);
+	let isRecurring = $state(false);
+	let lastOccurrencePeriod = $state('');
+	let isLucid = $state(false);
 	let saving = $state(false);
 	let error = $state('');
 	let generatingTitle = $state(false);
 	let titleError = $state('');
+	let optimizingDescription = $state(false);
+	let optimizeError = $state('');
 
 	async function handleGenerateTitle() {
 		if (!content.trim()) {
@@ -36,6 +43,26 @@
 		}
 	}
 
+	async function handleOptimizeDescription() {
+		if (!content.trim()) {
+			optimizeError = 'Please write your dream content first';
+			return;
+		}
+
+		try {
+			optimizingDescription = true;
+			optimizeError = '';
+
+			const response = await llmApi.optimizeDescription({ content: content.trim() });
+			content = response.optimized;
+		} catch (err) {
+			console.error('Failed to optimize description:', err);
+			optimizeError = err instanceof Error ? err.message : 'Failed to optimize description';
+		} finally {
+			optimizingDescription = false;
+		}
+	}
+
 	async function handleSubmit(e: Event) {
 		e.preventDefault();
 
@@ -52,7 +79,10 @@
 				title: title.trim(),
 				content: content.trim(),
 				date_occurred: new Date(dateOccurred).toISOString(),
-				sleep_quality: sleepQuality
+				sleep_quality: sleepQuality,
+				is_recurring: isRecurring,
+				last_occurrence_period: isRecurring && lastOccurrencePeriod ? (lastOccurrencePeriod as any) : undefined,
+				is_lucid: isLucid
 			};
 
 			await dreamsApi.create(input);
@@ -67,7 +97,7 @@
 
 	const containerStyles = css({
 		minHeight: '100vh',
-		backgroundColor: 'gray.50',
+		backgroundColor: 'bg.primary',
 		padding: '2rem'
 	});
 
@@ -80,30 +110,31 @@
 		display: 'inline-flex',
 		alignItems: 'center',
 		gap: '0.5rem',
-		color: 'gray.600',
+		color: 'text.secondary',
 		fontSize: 'sm',
 		marginBottom: '1rem',
 		cursor: 'pointer',
 		'&:hover': {
-			color: 'gray.900'
+			color: 'text.primary'
 		}
 	});
 
 	const titleStyles = css({
 		fontSize: '3xl',
 		fontWeight: 'bold',
-		color: 'gray.900'
+		color: 'text.primary'
 	});
 
 	const formContainerStyles = css({
 		maxWidth: '800px',
 		margin: '0 auto',
-		backgroundColor: 'white',
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
 		borderRadius: 'lg',
 		padding: '2rem',
-		boxShadow: 'sm',
+		boxShadow: 'void',
 		border: '1px solid',
-		borderColor: 'gray.200'
+		borderColor: 'border.liminal'
 	});
 
 	const formGroupStyles = css({
@@ -114,7 +145,7 @@
 		display: 'block',
 		fontSize: 'sm',
 		fontWeight: 'semibold',
-		color: 'gray.700',
+		color: 'text.primary',
 		marginBottom: '0.5rem'
 	});
 
@@ -123,12 +154,17 @@
 		padding: '0.75rem',
 		borderRadius: 'md',
 		border: '1px solid',
-		borderColor: 'gray.300',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.primary',
 		fontSize: 'md',
 		'&:focus': {
 			outline: 'none',
-			borderColor: 'blue.500',
-			boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+			borderColor: 'border.active',
+			boxShadow: 'glow'
+		},
+		'&::placeholder': {
+			color: 'text.muted'
 		}
 	});
 
@@ -137,15 +173,20 @@
 		padding: '0.75rem',
 		borderRadius: 'md',
 		border: '1px solid',
-		borderColor: 'gray.300',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.primary',
 		fontSize: 'md',
 		minHeight: '200px',
 		fontFamily: 'inherit',
 		resize: 'vertical',
 		'&:focus': {
 			outline: 'none',
-			borderColor: 'blue.500',
-			boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.1)'
+			borderColor: 'border.active',
+			boxShadow: 'glow'
+		},
+		'&::placeholder': {
+			color: 'text.muted'
 		}
 	});
 
@@ -158,22 +199,23 @@
 		padding: '0.5rem 1rem',
 		borderRadius: 'md',
 		border: '1px solid',
-		borderColor: 'gray.300',
-		backgroundColor: 'white',
+		borderColor: 'border.liminal',
+		backgroundColor: 'void.900',
+		color: 'text.primary',
 		cursor: 'pointer',
 		transition: 'all 0.2s',
 		'&:hover': {
-			borderColor: 'blue.400'
+			borderColor: 'border.active'
 		}
 	});
 
 	const qualityButtonActiveStyles = css({
-		backgroundColor: 'blue.500',
+		backgroundColor: 'breakthrough.500',
 		color: 'white',
-		borderColor: 'blue.500',
+		borderColor: 'breakthrough.500',
 		'&:hover': {
-			borderColor: 'blue.600',
-			backgroundColor: 'blue.600'
+			borderColor: 'breakthrough.600',
+			backgroundColor: 'breakthrough.600'
 		}
 	});
 
@@ -185,16 +227,18 @@
 
 	const errorStyles = css({
 		padding: '1rem',
-		backgroundColor: 'red.50',
-		color: 'red.700',
+		backgroundColor: 'void.800',
+		color: 'void.100',
 		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'void.700',
 		marginBottom: '1rem',
 		fontSize: 'sm'
 	});
 
 	const helpTextStyles = css({
 		fontSize: 'xs',
-		color: 'gray.500',
+		color: 'text.muted',
 		marginTop: '0.25rem'
 	});
 
@@ -210,8 +254,31 @@
 
 	const titleErrorStyles = css({
 		fontSize: 'xs',
-		color: 'red.600',
+		color: 'void.100',
 		marginTop: '0.25rem'
+	});
+
+	const checkboxContainerStyles = css({
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.75rem'
+	});
+
+	const checkboxStyles = css({
+		width: '1.25rem',
+		height: '1.25rem',
+		cursor: 'pointer',
+		accentColor: 'breakthrough.500'
+	});
+
+	const checkboxLabelStyles = css({
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.75rem',
+		cursor: 'pointer',
+		fontSize: 'sm',
+		fontWeight: 'semibold',
+		color: 'text.primary'
 	});
 </script>
 
@@ -234,6 +301,39 @@
 				<label for="date" class={labelStyles}>Dream Date</label>
 				<input type="date" id="date" class={inputStyles} bind:value={dateOccurred} required />
 				<p class={helpTextStyles}>When did you have this dream?</p>
+			</div>
+
+			<div class={formGroupStyles}>
+				<div class={titleFieldContainerStyles}>
+					<label for="content" class={labelStyles}>Dream Description</label>
+					<Button
+						variant="outline"
+						type="button"
+						onclick={handleOptimizeDescription}
+						disabled={optimizingDescription || !llmSettings.isConfigured || !content.trim()}
+						title={!llmSettings.isConfigured
+							? 'Configure LLM in settings first'
+							: !content.trim()
+								? 'Write dream content first'
+								: 'Optimize description for clarity and analysis'}
+					>
+						<Sparkles size={20} />
+						{optimizingDescription ? 'Optimizing...' : 'Optimize'}
+					</Button>
+				</div>
+				<textarea
+					id="content"
+					class={textareaStyles}
+					bind:value={content}
+					placeholder="Describe your dream in as much detail as you remember..."
+					required
+				></textarea>
+				{#if optimizeError}
+					<p class={titleErrorStyles}>{optimizeError}</p>
+				{/if}
+				<p class={helpTextStyles}>
+					Capture as many details as you can remember - symbols, feelings, people, places.
+				</p>
 			</div>
 
 			<div class={formGroupStyles}>
@@ -270,20 +370,6 @@
 			</div>
 
 			<div class={formGroupStyles}>
-				<label for="content" class={labelStyles}>Dream Description</label>
-				<textarea
-					id="content"
-					class={textareaStyles}
-					bind:value={content}
-					placeholder="Describe your dream in as much detail as you remember..."
-					required
-				></textarea>
-				<p class={helpTextStyles}>
-					Capture as many details as you can remember - symbols, feelings, people, places.
-				</p>
-			</div>
-
-			<div class={formGroupStyles}>
 				<label for="sleep-quality" class={labelStyles}>Sleep Quality</label>
 				<div id="sleep-quality" role="group" class={qualityContainerStyles}>
 					{#each [1, 2, 3, 4, 5] as quality}
@@ -297,6 +383,45 @@
 					{/each}
 				</div>
 				<p class={helpTextStyles}>Rate your sleep quality (1 = Poor, 5 = Excellent)</p>
+			</div>
+
+			<div class={formGroupStyles}>
+				<label class={checkboxLabelStyles}>
+					<input
+						type="checkbox"
+						class={checkboxStyles}
+						bind:checked={isRecurring}
+					/>
+					This is a recurring dream
+				</label>
+				<p class={helpTextStyles}>Have you had this dream before?</p>
+			</div>
+
+			{#if isRecurring}
+				<div class={formGroupStyles}>
+					<label for="last-occurrence" class={labelStyles}>When was the last time you had this dream?</label>
+					<Select
+						id="last-occurrence"
+						bind:value={lastOccurrencePeriod}
+						options={[
+							{ value: '', label: 'Select a time period' },
+							...RECURRENCE_TIME_PERIODS
+						]}
+					/>
+					<p class={helpTextStyles}>Approximately when did you last have this dream?</p>
+				</div>
+			{/if}
+
+			<div class={formGroupStyles}>
+				<label class={checkboxLabelStyles}>
+					<input
+						type="checkbox"
+						class={checkboxStyles}
+						bind:checked={isLucid}
+					/>
+					This was a lucid dream
+				</label>
+				<p class={helpTextStyles}>Were you aware that you were dreaming?</p>
 			</div>
 
 			<div class={buttonGroupStyles}>

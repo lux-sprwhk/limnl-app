@@ -1,23 +1,29 @@
 <script lang="ts">
 	import { css } from '../../../styled-system/css';
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
+	import { userProfile } from '$lib/stores/user-profile.svelte';
 	import type { LLMProvider } from '$lib/types/llm';
+	import { ZODIAC_SIGNS, MBTI_TYPES } from '$lib/types/user';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Select from '$lib/components/ui/Select.svelte';
 	import { Save } from 'lucide-svelte';
 
 	let config = $state({ ...llmSettings.config });
+	let profile = $state({ ...userProfile.profile });
 	let saved = $state(false);
 
 	function handleSave() {
 		llmSettings.updateConfig(config);
+		userProfile.updateProfile(profile);
 		saved = true;
 		setTimeout(() => (saved = false), 2000);
 	}
 
 	function handleReset() {
 		llmSettings.resetConfig();
+		userProfile.resetProfile();
 		config = { ...llmSettings.config };
+		profile = { ...userProfile.profile };
 	}
 
 	const containerStyles = css({
@@ -141,6 +147,48 @@
 		{#if saved}
 			<div class={successStyles}>Settings saved successfully!</div>
 		{/if}
+
+		<div class={sectionStyles}>
+			<h2 class={sectionTitleStyles}>User Profile</h2>
+
+			<div class={formGroupStyles}>
+				<label for="name" class={labelStyles}>Name</label>
+				<input
+					type="text"
+					id="name"
+					class={inputStyles}
+					bind:value={profile.name}
+					placeholder="Your name"
+				/>
+				<p class={helpTextStyles}>How would you like to be addressed in your dream journal?</p>
+			</div>
+
+			<div class={formGroupStyles}>
+				<label for="zodiac" class={labelStyles}>Zodiac Sign (Optional)</label>
+				<Select
+					id="zodiac"
+					bind:value={profile.zodiacSign}
+					options={[
+						{ value: '', label: 'Not specified' },
+						...ZODIAC_SIGNS
+					]}
+				/>
+				<p class={helpTextStyles}>Your zodiac sign for enhanced dream insights</p>
+			</div>
+
+			<div class={formGroupStyles}>
+				<label for="mbti" class={labelStyles}>Myers-Briggs Type (Optional)</label>
+				<Select
+					id="mbti"
+					bind:value={profile.mbtiType}
+					options={[
+						{ value: '', label: 'Not specified' },
+						...MBTI_TYPES
+					]}
+				/>
+				<p class={helpTextStyles}>Your MBTI personality type for personalized dream analysis</p>
+			</div>
+		</div>
 
 		<div class={sectionStyles}>
 			<h2 class={sectionTitleStyles}>LLM Configuration</h2>
