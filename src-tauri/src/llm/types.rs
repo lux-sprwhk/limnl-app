@@ -47,3 +47,8 @@ pub struct OptimizeDescriptionRequest {
 pub struct OptimizeDescriptionResponse {
     pub optimized: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CardCommentaryResponse {
+    pub commentary: String,
+}

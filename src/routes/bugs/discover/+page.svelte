@@ -5,14 +5,19 @@
 	import type { ConversationMessage } from '$lib/types/bug';
 	import cardsData from '../../../cards.json';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { Sparkles, Send, CheckCircle } from 'lucide-svelte';
+	import { Sparkles, Send, CheckCircle, ChevronDown } from 'lucide-svelte';
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 	import { bugsApi } from '$lib/api/bugs';
+	import { llmApi } from '$lib/api/llm';
+	import { Accordion } from 'bits-ui';
 
 	let selectedBlock = $state<'life' | 'work' | 'creative' | 'relationship' | null>(null);
 	let drawnCards = $state<Card[]>([]);
 	let selectedCards = $state<Card[]>([]);
 	let selectedCard = $state<Card | null>(null);
+	let selectedPrompt = $state<string>('');
+	let cardCommentaries = $state<Record<string, string>>({});
+	let loadingCommentaries = $state<Record<string, boolean>>({});
 	let conversationMessages = $state<ConversationMessage[]>([]);
 	let userMessage = $state('');
 	let isLoading = $state(false);
@@ -21,6 +26,10 @@
 	let discoveredBugDescription = $state('');
 	let cardDrawCount = $state(0);
 	const MAX_CARD_DRAWS = 3;
+
+	function getRandomPrompt(prompts: string[]): string {
+		return prompts[Math.floor(Math.random() * prompts.length)];
+	}
 
 	const BLOCKS = [
 		{ id: 'life', label: 'Life', emoji: '🌱', description: 'Personal growth, relationships, and daily living' },
@@ -234,6 +243,41 @@
 		lineHeight: '1.5'
 	});
 
+	const accordionStyles = css({
+		marginTop: '1.5rem'
+	});
+
+	const accordionItemStyles = css({
+		borderBottom: '1px solid',
+		borderColor: 'border.liminal'
+	});
+
+	const accordionTriggerStyles = css({
+		display: 'flex',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		width: '100%',
+		padding: '1rem',
+		backgroundColor: 'transparent',
+		border: 'none',
+		cursor: 'pointer',
+		fontSize: 'sm',
+		fontWeight: 'semibold',
+		color: 'text.primary',
+		transition: 'all 0.2s',
+		'&:hover': {
+			backgroundColor: 'void.900'
+		}
+	});
+
+	const accordionContentStyles = css({
+		padding: '1rem',
+		backgroundColor: 'void.900',
+		fontSize: 'sm',
+		color: 'text.secondary',
+		lineHeight: '1.6'
+	});
+
 	const blockContainerStyles = css({
 		display: 'grid',
 		gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -283,11 +327,71 @@
 		lineHeight: '1.5'
 	});
 
+	const selectedBlockBadgeStyles = css({
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.75rem',
+		padding: '0.5rem 1rem',
+		backgroundColor: 'void.800',
+		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.active',
+		marginBottom: '1.5rem',
+		width: 'fit-content',
+		fontSize: 'sm'
+	});
+
+	const selectedBlockBadgeEmojiStyles = css({
+		fontSize: '1.25rem'
+	});
+
+	const selectedBlockBadgeTextStyles = css({
+		color: 'text.primary',
+		fontWeight: 'semibold'
+	});
+
+	const selectedBlockBadgeCloseStyles = css({
+		cursor: 'pointer',
+		color: 'text.muted',
+		transition: 'color 0.2s',
+		'&:hover': {
+			color: 'text.primary'
+		}
+	});
+
 	function drawCards() {
 		const allCards = cardsData.cards;
 		const shuffled = [...allCards].sort(() => Math.random() - 0.5);
 		drawnCards = shuffled.slice(0, 3);
 		cardDrawCount += 1;
+		
+		// Generate commentaries for each card if LLM is configured
+		if (selectedBlock && llmSettings.config.provider !== 'disabled') {
+			drawnCards.forEach(card => {
+				generateCardCommentary(card);
+			});
+		}
+	}
+
+	async function generateCardCommentary(card: Card) {
+		if (!selectedBlock) return;
+		
+		const cardId = String(card.id);
+		loadingCommentaries[cardId] = true;
+		
+		try {
+			const response = await llmApi.commentOnCard({
+				cardName: card.name,
+				cardQuestion: card.card_question,
+				cardMeaning: card.core_meaning,
+				lifeArea: selectedBlock
+			});
+			cardCommentaries[cardId] = response.commentary;
+		} catch (error) {
+			console.error('Failed to generate card commentary:', error);
+		} finally {
+			delete loadingCommentaries[cardId];
+		}
 	}
 
 	function selectBlock(block: 'life' | 'work' | 'creative' | 'relationship') {
@@ -302,6 +406,8 @@
 		selectedCards = [];
 		conversationMessages = [];
 		cardDrawCount = 0;
+		cardCommentaries = {};
+		loadingCommentaries = {};
 	}
 
 	function drawNewCards() {
@@ -313,6 +419,7 @@
 
 	function selectCard(card: Card) {
 		selectedCard = card;
+		selectedPrompt = getRandomPrompt(card.perspective_prompts);
 		// Start the conversation with an initial message from the assistant
 		conversationMessages = [
 			{
@@ -389,6 +496,21 @@
 			</p>
 		</div>
 
+		{#if selectedBlock}
+			{@const selectedBlockData = BLOCKS.find(b => b.id === selectedBlock)}
+			<div class={selectedBlockBadgeStyles}>
+				<span class={selectedBlockBadgeEmojiStyles}>{selectedBlockData?.emoji}</span>
+				<span class={selectedBlockBadgeTextStyles}>{selectedBlockData?.label}</span>
+				<button
+					class={selectedBlockBadgeCloseStyles}
+					onclick={resetToBlockSelection}
+					title="Change life area"
+				>
+					✕
+				</button>
+			</div>
+		{/if}
+
 		{#if !selectedBlock}
 			<div class={blockContainerStyles}>
 				{#each BLOCKS as block (block.id)}
@@ -405,6 +527,9 @@
 		{:else if !selectedCard}
 			<div class={cardsContainerStyles}>
 				{#each drawnCards as card (card.id)}
+					{@const cardId = String(card.id)}
+					{@const commentary = cardCommentaries[cardId]}
+					{@const isLoading = loadingCommentaries[cardId]}
 					<button
 						class={cardStyles}
 						onclick={() => selectCard(card)}
@@ -413,6 +538,15 @@
 						<div class={cardNameStyles}>{card.name}</div>
 						<div class={cardQuestionStyles}>{card.card_question}</div>
 						<div class={cardMeaningStyles}>{card.core_meaning}</div>
+						{#if isLoading}
+							<div style="margin-top: 1rem; font-size: 0.875rem; color: var(--colors-text-muted); font-style: italic;">
+								Loading insight...
+							</div>
+						{:else if commentary}
+							<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--colors-border-liminal); font-size: 0.875rem; color: var(--colors-text-accent); line-height: 1.5;">
+								{commentary}
+							</div>
+						{/if}
 					</button>
 				{/each}
 			</div>
@@ -421,9 +555,38 @@
 				<div class={selectedCardEmojiStyles}>{selectedCard.emoji}</div>
 				<div class={selectedCardInfoStyles}>
 					<div class={selectedCardNameStyles}>{selectedCard.name}</div>
-					<div class={selectedCardQuestionStyles}>{selectedCard.card_question}</div>
+					<div class={css({ fontSize: 'sm', color: 'text.accent', marginTop: '0.75rem', fontStyle: 'italic', lineHeight: '1.4' })}>
+						{selectedPrompt}
+					</div>
 				</div>
 			</div>
+
+			{#if selectedCard}
+				{@const cardId = String(selectedCard.id)}
+				{@const commentary = cardCommentaries[cardId]}
+				{@const isLoading = loadingCommentaries[cardId]}
+				{#if commentary || isLoading}
+					<div class={accordionStyles}>
+						<Accordion.Root type="single">
+							<Accordion.Item value="commentary" class={accordionItemStyles}>
+								<Accordion.Trigger class={accordionTriggerStyles}>
+									<span>Card Insight</span>
+									<ChevronDown size={18} style="transition: transform 0.2s;" />
+								</Accordion.Trigger>
+								<Accordion.Content class={accordionContentStyles}>
+									{#if isLoading}
+										<div style="font-style: italic; color: var(--colors-text-muted);">
+											Loading insight...
+										</div>
+									{:else}
+										{commentary}
+									{/if}
+								</Accordion.Content>
+							</Accordion.Item>
+						</Accordion.Root>
+					</div>
+				{/if}
+			{/if}
 
 			<div class={chatContainerStyles}>
 				<div class={messagesContainerStyles}>

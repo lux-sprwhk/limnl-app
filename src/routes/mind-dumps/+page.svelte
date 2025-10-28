@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { css } from '../../../styled-system/css';
-	import { journalApi } from '$lib/api/journal';
-	import type { JournalEntry } from '$lib/types/journal';
+	import { mindDumpApi } from '$lib/api/mind-dumps';
+	import type { MindDump } from '$lib/types/mind-dump';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { Plus, Search, BookOpen } from 'lucide-svelte';
+	import { Plus, Search, Brain } from 'lucide-svelte';
 
-	let entries = $state<JournalEntry[]>([]);
+	let entries = $state<MindDump[]>([]);
 	let loading = $state(true);
 	let searchQuery = $state('');
 
@@ -17,9 +17,9 @@
 	async function loadEntries() {
 		try {
 			loading = true;
-			entries = await journalApi.list();
+			entries = await mindDumpApi.list();
 		} catch (error) {
-			console.error('Failed to load journal entries:', error);
+			console.error('Failed to load mind dumps:', error);
 		} finally {
 			loading = false;
 		}
@@ -33,9 +33,9 @@
 
 		try {
 			loading = true;
-			entries = await journalApi.search(searchQuery);
+			entries = await mindDumpApi.search(searchQuery);
 		} catch (error) {
-			console.error('Failed to search journal entries:', error);
+			console.error('Failed to search mind dumps:', error);
 		} finally {
 			loading = false;
 		}
@@ -57,7 +57,7 @@
 		return content.substring(0, maxLength) + '...';
 	}
 
-	function getEntryTitle(entry: JournalEntry): string {
+	function getEntryTitle(entry: MindDump): string {
 		if (entry.title) return entry.title;
 		return formatDate(entry.created_at);
 	}
@@ -200,19 +200,19 @@
 	<div class={headerStyles}>
 		<div class={titleContainerStyles}>
 			<h1 class={titleStyles}>
-				<BookOpen size={32} />
-				Journal
+				<Brain size={32} />
+				Mind Dumps
 			</h1>
-			<Button variant="primary" onclick={() => (window.location.href = '/journal/new')}>
+			<Button variant="primary" onclick={() => (window.location.href = '/mind-dumps/new')}>
 				<Plus size={20} />
-				New Entry
+				New Mind Dump
 			</Button>
 		</div>
 
 		<div class={searchContainerStyles}>
 			<input
 				type="text"
-				placeholder="Search your journal..."
+				placeholder="Search your mind dumps..."
 				class={searchInputStyles}
 				bind:value={searchQuery}
 				onkeydown={(e) => e.key === 'Enter' && handleSearch()}
@@ -226,25 +226,25 @@
 
 	<div class={contentStyles}>
 		{#if loading}
-			<div class={loadingStyles}>Loading your journal...</div>
+			<div class={loadingStyles}>Loading your mind dumps...</div>
 		{:else if entries.length === 0}
 			<div class={emptyStateStyles}>
-				<BookOpen size={64} class={emptyIconStyles} />
+				<Brain size={64} class={emptyIconStyles} />
 				<h2 class={css({ fontSize: 'xl', fontWeight: 'semibold', marginBottom: '0.5rem' })}>
-					No entries yet
+					No mind dumps yet
 				</h2>
 				<p class={css({ marginBottom: '1.5rem' })}>
-					Start your daily writing practice. Aim for 750 words to clear your mind.
+					Capture your raw thoughts whenever inspiration strikes. No structure, no pressure.
 				</p>
-				<Button variant="primary" onclick={() => (window.location.href = '/journal/new')}>
+				<Button variant="primary" onclick={() => (window.location.href = '/mind-dumps/new')}>
 					<Plus size={20} />
-					Write Your First Entry
+					Dump Your First Thoughts
 				</Button>
 			</div>
 		{:else}
 			<div class={entriesGridStyles}>
 				{#each entries as entry}
-					<a href={`/journal/${entry.id}`} class={entryCardStyles}>
+					<a href={`/mind-dumps/${entry.id}`} class={entryCardStyles}>
 						<div class={entryHeaderStyles}>
 							<div>
 								<h2 class={entryTitleStyles}>{getEntryTitle(entry)}</h2>

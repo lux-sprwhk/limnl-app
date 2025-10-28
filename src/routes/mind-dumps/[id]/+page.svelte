@@ -1,15 +1,15 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { css } from '../../../../styled-system/css';
-	import { journalApi } from '$lib/api/journal';
-	import type { JournalEntry } from '$lib/types/journal';
+	import { mindDumpApi } from '$lib/api/mind-dumps';
+	import type { MindDump } from '$lib/types/mind-dumps';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Trash2, Calendar, BookOpen } from 'lucide-svelte';
+	import { ArrowLeft, Trash2, Calendar, Brain } from 'lucide-svelte';
 
 	let { data } = $props();
 	const id = data.id;
 
-	let entry = $state<JournalEntry | null>(null);
+	let entry = $state<MindDump | null>(null);
 	let loading = $state(true);
 	let deleting = $state(false);
 
@@ -21,7 +21,7 @@
 		try {
 			loading = true;
 			const entryId = parseInt(id);
-			entry = await journalApi.get(entryId);
+			entry = await mindDumpApi.get(entryId);
 		} catch (error) {
 			console.error('Failed to load journal entry:', error);
 		} finally {
@@ -37,8 +37,8 @@
 
 		try {
 			deleting = true;
-			await journalApi.delete(entry.id);
-			window.location.href = '/journal';
+			await mindDumpApi.delete(entry.id);
+			window.location.href = '/mind-dumps';
 		} catch (error) {
 			console.error('Failed to delete entry:', error);
 			alert('Failed to delete entry. Please try again.');
@@ -67,7 +67,7 @@
 		});
 	}
 
-	function getEntryTitle(entry: JournalEntry): string {
+	function getEntryTitle(entry: MindDump): string {
 		if (entry.title) return entry.title;
 		return formatDate(entry.created_at);
 	}
@@ -191,7 +191,7 @@
 
 <div class={containerStyles}>
 	<div class={headerStyles}>
-		<a href="/journal" class={backButtonStyles}>
+		<a href="/mind-dumps" class={backButtonStyles}>
 			<ArrowLeft size={16} />
 			Back to Journal
 		</a>
@@ -201,11 +201,11 @@
 		<div class={loadingStyles}>Loading entry...</div>
 	{:else if !entry}
 		<div class={notFoundStyles}>
-			<BookOpen size={64} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+			<Brain size={64} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
 			<h2 class={css({ fontSize: 'xl', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
-				Entry not found
+				Mind dump not found
 			</h2>
-			<p>This entry may have been deleted or doesn't exist.</p>
+			<p>This mind dump may have been deleted or doesn't exist.</p>
 		</div>
 	{:else}
 		<div class={contentStyles}>
@@ -226,7 +226,7 @@
 				</div>
 
 				<div class={metaItemStyles}>
-					<BookOpen size={16} />
+					<Brain size={16} />
 					<span class={wordCountBadgeStyles}>{entry.word_count} words</span>
 				</div>
 			</div>

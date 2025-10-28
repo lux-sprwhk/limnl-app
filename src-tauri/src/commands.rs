@@ -1,7 +1,7 @@
 use crate::db::{models::*, Database};
 use crate::llm::{
     client, GenerateTitleRequest, GenerateTitleResponse, OptimizeDescriptionRequest,
-    OptimizeDescriptionResponse,
+    OptimizeDescriptionResponse, CardCommentaryResponse,
 };
 use tauri::State;
 
@@ -126,6 +126,33 @@ pub async fn generate_bug_title(
 ) -> Result<GenerateTitleResponse, String> {
     let title = client::generate_title(&request.content, &request.config).await?;
     Ok(GenerateTitleResponse { title })
+}
+
+#[tauri::command]
+pub async fn comment_on_card(
+    request: serde_json::Value,
+) -> Result<CardCommentaryResponse, String> {
+    let card_name = request
+        .get("card_name")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing card_name")?;
+    let card_question = request
+        .get("card_question")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing card_question")?;
+    let card_meaning = request
+        .get("card_meaning")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing card_meaning")?;
+    let life_area = request
+        .get("life_area")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing life_area")?;
+    let config = serde_json::from_value(request.get("config").ok_or("Missing config")?.clone())
+        .map_err(|e| format!("Invalid config: {}", e))?;
+
+    let commentary = client::comment_on_card(card_name, card_question, card_meaning, life_area, &config).await?;
+    Ok(CardCommentaryResponse { commentary })
 }
 
 // Mind dump commands

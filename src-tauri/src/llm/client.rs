@@ -27,6 +27,19 @@ Respond with ONLY the optimized description, nothing else.
 
 Raw dream description:"#;
 
+const CARD_COMMENTARY_PROMPT: &str = r#"You are a compassionate guide helping someone discover what's really bothering them through reflective card-based inquiry.
+
+A person is exploring a bug or issue in their {life_area} area. They've drawn a card that might help them understand what's blocking them.
+
+Card: {card_name}
+Question: {card_question}
+Meaning: {card_meaning}
+
+Provide a brief, insightful commentary (1-2 short sentences) on how this card's meaning might relate to issues in their {life_area} area. Help them see potential connections without being prescriptive.
+
+Keep the commentary concise and to the point.
+Respond with ONLY the commentary, nothing else."#;
+
 fn map_ollama_model(model_name: &str) -> &str {
     match model_name {
         "llama" => "llama3.2",
@@ -70,6 +83,21 @@ pub async fn optimize_description(content: &str, config: &LLMConfig) -> Result<S
         LLMProvider::Ollama => optimize_description_ollama(content, config).await,
         LLMProvider::OpenAI => optimize_description_openai(content, config).await,
         LLMProvider::Anthropic => optimize_description_anthropic(content, config).await,
+    }
+}
+
+pub async fn comment_on_card(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    config: &LLMConfig,
+) -> Result<String, String> {
+    match config.provider {
+        LLMProvider::Disabled => Err("LLM is disabled".to_string()),
+        LLMProvider::Ollama => comment_on_card_ollama(card_name, card_question, card_meaning, life_area, config).await,
+        LLMProvider::OpenAI => comment_on_card_openai(card_name, card_question, card_meaning, life_area, config).await,
+        LLMProvider::Anthropic => comment_on_card_anthropic(card_name, card_question, card_meaning, life_area, config).await,
     }
 }
 
@@ -291,6 +319,158 @@ async fn optimize_description_anthropic(content: &str, config: &LLMConfig) -> Re
         .json(&json!({
             "model": model,
             "max_tokens": 2000,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("Anthropic API error: {}", error_text));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Anthropic response: {}", e))?;
+
+    data.get("content")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|item| item.get("text"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| "Invalid Anthropic response format".to_string())
+}
+
+async fn comment_on_card_ollama(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    config: &LLMConfig,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/generate", config.ollama_url);
+    let model = map_ollama_model(&config.ollama_model);
+
+    let prompt = CARD_COMMENTARY_PROMPT
+        .replace("{life_area}", life_area)
+        .replace("{card_name}", card_name)
+        .replace("{card_question}", card_question)
+        .replace("{card_meaning}", card_meaning);
+
+    let response = client
+        .post(&url)
+        .json(&json!({
+            "model": model,
+            "prompt": prompt,
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ollama request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API error: {}", response.status()));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+
+    data.get("response")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| "Invalid Ollama response format".to_string())
+}
+
+async fn comment_on_card_openai(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    config: &LLMConfig,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let model = map_openai_model(&config.openai_model);
+
+    let prompt = CARD_COMMENTARY_PROMPT
+        .replace("{life_area}", life_area)
+        .replace("{card_name}", card_name)
+        .replace("{card_question}", card_question)
+        .replace("{card_meaning}", card_meaning);
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", config.openai_api_key))
+        .json(&json!({
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 200
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("OpenAI request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("OpenAI API error: {}", error_text));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
+
+    data.get("choices")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|msg| msg.get("content"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| "Invalid OpenAI response format".to_string())
+}
+
+async fn comment_on_card_anthropic(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    config: &LLMConfig,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let model = map_anthropic_model(&config.anthropic_model);
+
+    let prompt = CARD_COMMENTARY_PROMPT
+        .replace("{life_area}", life_area)
+        .replace("{card_name}", card_name)
+        .replace("{card_question}", card_question)
+        .replace("{card_meaning}", card_meaning);
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("Content-Type", "application/json")
+        .header("x-api-key", &config.anthropic_api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&json!({
+            "model": model,
+            "max_tokens": 200,
             "messages": [
                 {
                     "role": "user",

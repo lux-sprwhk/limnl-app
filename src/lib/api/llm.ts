@@ -121,5 +121,34 @@ export const llmApi = {
 			}
 			throw new Error('Failed to generate bug title');
 		}
+	},
+
+	commentOnCard: async (request: { cardName: string; cardQuestion: string; cardMeaning: string; lifeArea: string }) => {
+		const config = llmSettings.config;
+
+		if (config.provider === 'disabled') {
+			throw new Error('LLM provider is disabled. Please configure an LLM provider in settings.');
+		}
+
+		try {
+			const response = await invoke<{ commentary: string }>('comment_on_card', {
+				request: {
+					card_name: request.cardName,
+					card_question: request.cardQuestion,
+					card_meaning: request.cardMeaning,
+					life_area: request.lifeArea,
+					config: config
+				}
+			});
+			return response;
+		} catch (error) {
+			if (error instanceof Error) {
+				throw error;
+			}
+			if (typeof error === 'string') {
+				throw new Error(error);
+			}
+			throw new Error('Failed to generate card commentary');
+		}
 	}
 };
