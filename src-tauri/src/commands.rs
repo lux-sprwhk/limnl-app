@@ -198,6 +198,10 @@ pub async fn chat_with_history(
         .get("card_meaning")
         .and_then(|v| v.as_str())
         .ok_or("Missing card_meaning")?;
+    let card_insights = request
+        .get("card_insights")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
     let life_area = request
         .get("life_area")
         .and_then(|v| v.as_str())
@@ -205,13 +209,28 @@ pub async fn chat_with_history(
     let config = serde_json::from_value(request.get("config").ok_or("Missing config")?.clone())
         .map_err(|e| format!("Invalid config: {}", e))?;
 
-    let response = client::chat_with_history(
+    let user_name = request
+        .get("user_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let zodiac_sign = request
+        .get("zodiac_sign")
+        .and_then(|v| v.as_str());
+    let mbti_type = request
+        .get("mbti_type")
+        .and_then(|v| v.as_str());
+
+    let response = client::chat_with_history_with_profile(
         user_message,
         messages,
         card_name,
         card_question,
         card_meaning,
+        card_insights,
         life_area,
+        user_name,
+        zodiac_sign,
+        mbti_type,
         &config,
     )
     .await?;

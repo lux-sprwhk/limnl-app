@@ -58,20 +58,64 @@ const DISCOVERY_CHAT_SYSTEM_PROMPT: &str = r#"You are a compassionate and insigh
 
 The person is using a card-based discovery process to uncover a "bug" (a recurring issue or pattern) in their {life_area} area. They've drawn the "{card_name}" card to help guide the exploration.
 
-Your role is to:
-- Ask thoughtful, open-ended questions that help them explore the issue deeper
-- Listen carefully to what they share and reflect it back
-- Help them connect their feelings and experiences to patterns
-- Guide them toward insights about what might be blocking them
-- Be warm, non-judgmental, and genuinely curious
-- Keep responses concise and focused (1-3 sentences typically)
+PRIMARY LENS - THE CARD:
+The card is your main analytical tool. Always ground your responses in the card's meaning and how it relates to what they're sharing.
 
 Card context:
 - Card: {card_name}
 - Question: {card_question}
 - Meaning: {card_meaning}
 
-Remember: Your goal is to help them discover their own insights, not to tell them what's wrong."#;
+Use the card's meaning as the primary framework for understanding their situation. Ask questions that help them see connections between the card's wisdom and their lived experience.
+
+Your role is to:
+- Ask thoughtful, open-ended questions rooted in the card's meaning
+- Listen carefully to what they share and reflect it back through the card's lens
+- Help them connect their feelings and experiences to the card's insights
+- Guide them toward insights about what might be blocking them
+- Be warm, non-judgmental, and genuinely curious
+- Keep responses concise and focused (1-3 sentences typically)
+
+SUPPORTING FRAMEWORK - BLOCKER PATTERNS:
+You are trained to recognize psychological and cognitive patterns that create life blocks. Use these as supporting analytical lenses ONLY when they illuminate what the card is already pointing to:
+
+Epistemological Obstacles:
+- substantialist_thinking: Treating dynamic processes as fixed traits
+- obstacle_of_experience: Over-reliance on past experience
+- verbal_obstacle: Getting trapped in language/metaphors
+- unitary_knowledge: Resistance to complexity
+- pragmatic_knowledge: Quick-fix seeking over deep understanding
+- quantitative_obstacle: Over-focus on metrics
+- animistic_thinking: External attribution patterns
+- mythical_valorization: Idealization of approaches
+- circular_reasoning: Self-reinforcing thought loops
+- false_precision: Pseudo-accuracy masking uncertainty
+- cognitive_rigidity: Difficulty shifting perspectives
+- avoidance_pattern: Systematic topic avoidance
+
+Cognitive Biases:
+- confirmation_bias: Seeking confirming information
+- dunning_kruger_effect: Overconfidence in low-competence areas
+- sunk_cost_fallacy: Continuing due to past investment
+- choice_overload_paralysis: Decision avoidance
+
+Attachment Patterns:
+- avoidant_attachment_block: Emotional discomfort
+- anxious_attachment_block: Validation seeking
+- disorganized_attachment_block: Chaotic engagement
+
+Psychological Reactance:
+- autonomy_threat_response: Resistance to perceived control
+
+Cognitive Distortions:
+- catastrophic_thinking: Worst-case scenario focus
+- all_or_nothing_thinking: Black-and-white patterns
+- mental_filtering: Negative focus
+- personalization_bias: Excessive self-blame
+
+Only surface these patterns when they genuinely deepen understanding of what the card is revealing—never force connections or use them as a substitute for the card's wisdom.
+
+Remember: Your goal is to help them discover their own insights through the card's guidance, not to tell them what's wrong."#;
 
 fn map_ollama_model(model_name: &str) -> &str {
     match model_name {
@@ -147,20 +191,24 @@ pub async fn comment_on_multiple_cards(
     }
 }
 
-pub async fn chat_with_history(
+pub async fn chat_with_history_with_profile(
     user_message: &str,
     messages: &[Value],
     card_name: &str,
     card_question: &str,
     card_meaning: &str,
+    card_insights: &str,
     life_area: &str,
+    user_name: &str,
+    zodiac_sign: Option<&str>,
+    mbti_type: Option<&str>,
     config: &LLMConfig,
 ) -> Result<String, String> {
     match config.provider {
         LLMProvider::Disabled => Err("LLM is disabled".to_string()),
-        LLMProvider::Ollama => chat_with_history_ollama(user_message, messages, card_name, card_question, card_meaning, life_area, config).await,
-        LLMProvider::OpenAI => chat_with_history_openai(user_message, messages, card_name, card_question, card_meaning, life_area, config).await,
-        LLMProvider::Anthropic => chat_with_history_anthropic(user_message, messages, card_name, card_question, card_meaning, life_area, config).await,
+        LLMProvider::Ollama => chat_with_history_ollama(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, config).await,
+        LLMProvider::OpenAI => chat_with_history_openai(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, config).await,
+        LLMProvider::Anthropic => chat_with_history_anthropic(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, config).await,
     }
 }
 
@@ -772,7 +820,11 @@ async fn chat_with_history_ollama(
     card_name: &str,
     card_question: &str,
     card_meaning: &str,
+    card_insights: &str,
     life_area: &str,
+    user_name: &str,
+    zodiac_sign: Option<&str>,
+    mbti_type: Option<&str>,
     config: &LLMConfig,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
@@ -788,11 +840,29 @@ async fn chat_with_history_ollama(
         }
     }
 
-    let system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
         .replace("{card_meaning}", card_meaning);
+    
+    if !card_insights.is_empty() {
+        system_prompt.push_str(&format!("\n\nCard Insights (generated for this life area):\n{}", card_insights));
+    }
+    
+    // Add user profile context
+    if !user_name.is_empty() || zodiac_sign.is_some() || mbti_type.is_some() {
+        system_prompt.push_str("\n\nUser Profile:");
+        if !user_name.is_empty() {
+            system_prompt.push_str(&format!("\n- Name: {}", user_name));
+        }
+        if let Some(sign) = zodiac_sign {
+            system_prompt.push_str(&format!("\n- Zodiac Sign: {}", sign));
+        }
+        if let Some(mbti) = mbti_type {
+            system_prompt.push_str(&format!("\n- MBTI Type: {}", mbti));
+        }
+    }
 
     let prompt = format!("{}\n\nConversation history:\n{}\nUser: {}\n\nAssistant:", system_prompt, conversation, user_message);
 
@@ -828,17 +898,39 @@ async fn chat_with_history_openai(
     card_name: &str,
     card_question: &str,
     card_meaning: &str,
+    card_insights: &str,
     life_area: &str,
+    user_name: &str,
+    zodiac_sign: Option<&str>,
+    mbti_type: Option<&str>,
     config: &LLMConfig,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
     let model = map_openai_model(&config.openai_model);
 
-    let system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
         .replace("{card_meaning}", card_meaning);
+    
+    if !card_insights.is_empty() {
+        system_prompt.push_str(&format!("\n\nCard Insights (generated for this life area):\n{}", card_insights));
+    }
+    
+    // Add user profile context
+    if !user_name.is_empty() || zodiac_sign.is_some() || mbti_type.is_some() {
+        system_prompt.push_str("\n\nUser Profile:");
+        if !user_name.is_empty() {
+            system_prompt.push_str(&format!("\n- Name: {}", user_name));
+        }
+        if let Some(sign) = zodiac_sign {
+            system_prompt.push_str(&format!("\n- Zodiac Sign: {}", sign));
+        }
+        if let Some(mbti) = mbti_type {
+            system_prompt.push_str(&format!("\n- MBTI Type: {}", mbti));
+        }
+    }
 
     // Build message array for OpenAI
     let mut chat_messages = vec![
@@ -904,17 +996,39 @@ async fn chat_with_history_anthropic(
     card_name: &str,
     card_question: &str,
     card_meaning: &str,
+    card_insights: &str,
     life_area: &str,
+    user_name: &str,
+    zodiac_sign: Option<&str>,
+    mbti_type: Option<&str>,
     config: &LLMConfig,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
     let model = map_anthropic_model(&config.anthropic_model);
 
-    let system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
         .replace("{card_meaning}", card_meaning);
+    
+    if !card_insights.is_empty() {
+        system_prompt.push_str(&format!("\n\nCard Insights (generated for this life area):\n{}", card_insights));
+    }
+    
+    // Add user profile context
+    if !user_name.is_empty() || zodiac_sign.is_some() || mbti_type.is_some() {
+        system_prompt.push_str("\n\nUser Profile:");
+        if !user_name.is_empty() {
+            system_prompt.push_str(&format!("\n- Name: {}", user_name));
+        }
+        if let Some(sign) = zodiac_sign {
+            system_prompt.push_str(&format!("\n- Zodiac Sign: {}", sign));
+        }
+        if let Some(mbti) = mbti_type {
+            system_prompt.push_str(&format!("\n- MBTI Type: {}", mbti));
+        }
+    }
 
     // Build message array for Anthropic
     let mut chat_messages = vec![];

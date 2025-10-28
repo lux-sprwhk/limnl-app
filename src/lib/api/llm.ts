@@ -179,7 +179,7 @@ export const llmApi = {
 		}
 	},
 
-	chatWithHistory: async (request: { userMessage: string; messages: Array<{ role: 'user' | 'assistant'; content: string }>; cardName: string; cardQuestion: string; cardMeaning: string; lifeArea: string }) => {
+	chatWithHistory: async (request: { userMessage: string; messages: Array<{ role: 'user' | 'assistant'; content: string }>; cardName: string; cardQuestion: string; cardMeaning: string; cardInsights?: string; lifeArea: string; userName?: string; zodiacSign?: string; mbtiType?: string }) => {
 		const config = llmSettings.config;
 
 		if (config.provider === 'disabled') {
@@ -194,7 +194,11 @@ export const llmApi = {
 					card_name: request.cardName,
 					card_question: request.cardQuestion,
 					card_meaning: request.cardMeaning,
+					card_insights: request.cardInsights || '',
 					life_area: request.lifeArea,
+					user_name: request.userName || '',
+					zodiac_sign: request.zodiacSign || null,
+					mbti_type: request.mbtiType || null,
 					config: config
 				}
 			});

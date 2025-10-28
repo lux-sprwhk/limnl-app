@@ -5,8 +5,10 @@
 	import type { ConversationMessage } from '$lib/types/bug';
 	import cardsData from '../../../cards.json';
 	import Button from '$lib/components/ui/Button.svelte';
+	import Loader from '$lib/components/ui/Loader.svelte';
 	import { Sparkles, Send, CheckCircle, ChevronDown } from 'lucide-svelte';
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
+	import { userProfile } from '$lib/stores/user-profile.svelte';
 	import { bugsApi } from '$lib/api/bugs';
 	import { llmApi } from '$lib/api/llm';
 	import { Accordion } from 'bits-ui';
@@ -24,7 +26,10 @@
 	let bugDiscovered = $state(false);
 	let discoveredBugTitle = $state('');
 	let discoveredBugDescription = $state('');
+	let isGeneratingWithAI = $state(false);
+	let userMessageCount = $state(0);
 	const MAX_SELECTED_CARDS = 3;
+	const NUDGE_THRESHOLD = 5;
 
 	function getRandomPrompt(prompts: string[]): string {
 		return prompts[Math.floor(Math.random() * prompts.length)];
@@ -436,11 +441,13 @@
 		conversationMessages = [];
 		cardCommentaries = {};
 		loadingCommentaries = {};
+		userMessageCount = 0;
 	}
 
 	function drawNewCards() {
 		drawCards();
 		selectedCard = null;
+		userMessageCount = 0;
 	}
 
 	function selectCard(card: Card) {
@@ -466,11 +473,15 @@
 		};
 
 		conversationMessages = [...conversationMessages, newMessage];
+		userMessageCount++;
 		const currentMessage = userMessage;
 		userMessage = '';
 		isLoading = true;
 
 		try {
+			const cardId = String(selectedCard.id);
+			const cardInsights = cardCommentaries[cardId] || '';
+			
 			const response = await llmApi.chatWithHistory({
 				userMessage: currentMessage,
 				messages: conversationMessages.map(msg => ({
@@ -480,7 +491,11 @@
 				cardName: selectedCard.name,
 				cardQuestion: selectedCard.card_question,
 				cardMeaning: selectedCard.core_meaning,
-				lifeArea: selectedBlock
+				cardInsights: cardInsights,
+				lifeArea: selectedBlock,
+				userName: userProfile.profile.name,
+				zodiacSign: userProfile.profile.zodiacSign,
+				mbtiType: userProfile.profile.mbtiType
 			});
 
 			const assistantMessage: ConversationMessage = {
@@ -489,6 +504,16 @@
 				timestamp: new Date().toISOString()
 			};
 			conversationMessages = [...conversationMessages, assistantMessage];
+
+			// Check if we should show the nudge
+			if (userMessageCount === NUDGE_THRESHOLD) {
+				const nudgeMessage: ConversationMessage = {
+					role: 'assistant',
+					content: `It seems we're exploring this card deeply! If you haven't found the bug yet, you might want to draw new cards and select a different one that resonates with you. Sometimes a fresh perspective helps uncover what's really blocking you.`,
+					timestamp: new Date().toISOString()
+				};
+				conversationMessages = [...conversationMessages, nudgeMessage];
+			}
 		} catch (error) {
 			console.error('Failed to get chat response:', error);
 			const errorMessage: ConversationMessage = {
@@ -502,14 +527,34 @@
 		}
 	}
 
+	async function generateWithAI() {
+		if (!discoveredBugDescription.trim()) return;
+
+		isGeneratingWithAI = true;
+		try {
+			// Generate title from description
+			const titleResponse = await llmApi.generateBugTitle({
+				content: discoveredBugDescription
+			});
+			discoveredBugTitle = titleResponse.title;
+		} catch (error) {
+			console.error('Failed to generate title:', error);
+		} finally {
+			isGeneratingWithAI = false;
+		}
+	}
+
 	async function saveBug() {
 		if (!discoveredBugTitle || !discoveredBugDescription) return;
 
 		try {
+			// Collect all cards that were selected during the discovery process
+			const cardsUsed = selectedCard ? [selectedCard.id] : [];
+			
 			const bug = await bugsApi.create({
 				title: discoveredBugTitle,
 				description: discoveredBugDescription,
-				cards_drawn: JSON.stringify([selectedCard?.id]),
+				cards_drawn: JSON.stringify(cardsUsed),
 				conversation_history: JSON.stringify(conversationMessages)
 			});
 
@@ -584,8 +629,8 @@
 						<div class={cardQuestionStyles}>{card.card_question}</div>
 						<div class={cardMeaningStyles}>{card.core_meaning}</div>
 						{#if isLoading}
-							<div style="margin-top: 1rem; font-size: 0.875rem; color: var(--colors-text-muted); font-style: italic;">
-								Loading insight...
+							<div style="margin-top: 1rem;">
+								<Loader size={16} />
 							</div>
 						{:else if commentary}
 							<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--colors-border-liminal); font-size: 0.875rem; color: var(--colors-text-accent); line-height: 1.5;">
@@ -629,8 +674,8 @@
 								</Accordion.Trigger>
 								<Accordion.Content class={accordionContentStyles}>
 									{#if isLoading}
-										<div style="font-style: italic; color: var(--colors-text-muted);">
-											Loading insight...
+										<div>
+											<Loader size={16} text="Loading insight..." />
 										</div>
 									{:else}
 										{commentary}
@@ -691,8 +736,14 @@
 						variant="primary"
 						onclick={() => {
 							bugDiscovered = true;
-							discoveredBugTitle = 'Sample Bug Title';
-							discoveredBugDescription = 'Sample bug description based on conversation';
+							// Use conversation content as placeholder for description
+							if (conversationMessages.length > 0) {
+								const userMessages = conversationMessages
+									.filter(m => m.role === 'user')
+									.map(m => m.content)
+									.join('\n\n');
+								discoveredBugDescription = userMessages || 'Describe what you\'ve uncovered...';
+							}
 						}}
 					>
 						<CheckCircle size={20} />
@@ -707,20 +758,6 @@
 				</h2>
 
 				<div style="margin-bottom: 1.5rem;">
-					<label for="bug-title" style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--colors-text-secondary); margin-bottom: 0.5rem;">
-						Title
-					</label>
-					<input
-						id="bug-title"
-						type="text"
-						bind:value={discoveredBugTitle}
-						class={textareaStyles}
-						placeholder="Give your bug a name..."
-						style="min-height: auto; height: auto;"
-					/>
-				</div>
-
-				<div style="margin-bottom: 1.5rem;">
 					<label for="bug-description" style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--colors-text-secondary); margin-bottom: 0.5rem;">
 						Description
 					</label>
@@ -731,6 +768,35 @@
 						placeholder="Describe what you've uncovered..."
 						rows="5"
 					></textarea>
+				</div>
+
+				<div style="margin-bottom: 1.5rem;">
+					<label for="bug-title" style="display: block; font-size: 0.875rem; font-weight: 500; color: var(--colors-text-secondary); margin-bottom: 0.5rem;">
+						Title
+					</label>
+					<div style="display: flex; gap: 1rem; align-items: flex-start;">
+						<input
+							id="bug-title"
+							type="text"
+							bind:value={discoveredBugTitle}
+							class={textareaStyles}
+							placeholder="Give your bug a name..."
+							style="min-height: auto; height: auto; flex: 1;"
+						/>
+						<Button
+							variant="outline"
+							onclick={generateWithAI}
+							disabled={!discoveredBugDescription.trim() || isGeneratingWithAI || llmSettings.config.provider === 'disabled'}
+							title={llmSettings.config.provider === 'disabled' ? 'LLM provider is disabled' : 'Generate title using AI'}
+						>
+							<Sparkles size={18} />
+							{#if isGeneratingWithAI}
+								Generating...
+							{:else}
+								Generate
+							{/if}
+						</Button>
+					</div>
 				</div>
 
 				<div style="display: flex; gap: 1rem; justify-content: flex-end;">

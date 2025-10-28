@@ -2,6 +2,14 @@
 	import { css } from '../../styled-system/css';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { Moon, BookOpen } from 'lucide-svelte';
+	import { browser } from '$app/environment';
+	import { userProfile } from '$lib/stores/user-profile.svelte';
+	import { goto } from '$app/navigation';
+
+	// Check immediately if user has profile and redirect before render
+	if (browser && userProfile.profile.name) {
+		goto('/dreams');
+	}
 
 	const containerStyles = css({
 		minHeight: '100vh',
@@ -62,20 +70,25 @@
 		marginBottom: '2rem',
 		lineHeight: '1.6'
 	});
-
 </script>
 
 <div class={containerStyles}>
-	<h1 class={titleStyles}>Limnl</h1>
-	<p class={subtitleStyles}>Your private space for self-reflection</p>
-
 	<div class={cardStyles}>
 		<div class={iconWrapperStyles}>
 			<Moon size={48} class={css({ color: 'breakthrough.400' })} />
 		</div>
 
-		<h2 class={css({ fontSize: '2xl', fontWeight: 'semibold', marginBottom: '1rem', color: 'text.primary' })}>
-			Limnl Journal
+		<h2
+			class={css({
+				fontSize: '2xl',
+				fontWeight: 'semibold',
+				marginBottom: '1rem',
+				color: 'text.primary'
+			})}
+		>
+			{#if browser && userProfile.profile.name}
+				Welcome back, {userProfile.profile.name}!
+			{/if}
 		</h2>
 
 		<p class={descriptionStyles}>
@@ -85,7 +98,13 @@
 
 		<Button variant="primary" size="lg" onclick={() => (window.location.href = '/dreams')}>
 			<BookOpen size={20} />
-			Open Dream Journal
+			Open Limnl
 		</Button>
+
+		<Button variant="primary" size="lg" onclick={() => (window.location.href = '/bugs/discover')}>
+			<BookOpen size={20} />
+			New Space
+		</Button>
+
 	</div>
 </div>
