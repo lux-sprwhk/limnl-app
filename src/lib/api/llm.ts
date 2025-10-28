@@ -123,7 +123,7 @@ export const llmApi = {
 		}
 	},
 
-	commentOnCard: async (request: { cardName: string; cardQuestion: string; cardMeaning: string; lifeArea: string }) => {
+	commentOnCard: async (request: { cardName: string; cardQuestion: string; cardMeaning: string; lifeArea: string; selectedCards?: Array<{ name: string; question: string; meaning: string }> }) => {
 		const config = llmSettings.config;
 
 		if (config.provider === 'disabled') {
@@ -137,6 +137,7 @@ export const llmApi = {
 					card_question: request.cardQuestion,
 					card_meaning: request.cardMeaning,
 					life_area: request.lifeArea,
+					selected_cards: request.selectedCards || [],
 					config: config
 				}
 			});
@@ -152,7 +153,7 @@ export const llmApi = {
 		}
 	},
 
-	commentOnMultipleCards: async (request: { cards: Array<{ id: number; name: string; question: string; meaning: string }>; lifeArea: string }) => {
+	commentOnMultipleCards: async (request: { cards: Array<{ id: number; name: string; question: string; meaning: string }>; lifeArea: string; selectedCards?: Array<{ name: string; question: string; meaning: string }> }) => {
 		const config = llmSettings.config;
 
 		if (config.provider === 'disabled') {
@@ -164,6 +165,7 @@ export const llmApi = {
 				request: {
 					cards: request.cards,
 					life_area: request.lifeArea,
+					selected_cards: request.selectedCards || [],
 					config: config
 				}
 			});
@@ -179,7 +181,7 @@ export const llmApi = {
 		}
 	},
 
-	chatWithHistory: async (request: { userMessage: string; messages: Array<{ role: 'user' | 'assistant'; content: string }>; cardName: string; cardQuestion: string; cardMeaning: string; cardInsights?: string; lifeArea: string; userName?: string; zodiacSign?: string; mbtiType?: string }) => {
+	chatWithHistory: async (request: { userMessage: string; messages: Array<{ role: 'user' | 'assistant'; content: string }>; cardName: string; cardQuestion: string; cardMeaning: string; cardInsights?: string; lifeArea: string; userName?: string; zodiacSign?: string; mbtiType?: string; selectedCards?: Array<{ id: number; name: string; card_question: string; core_meaning: string; emoji: string; commentary: string }> }) => {
 		const config = llmSettings.config;
 
 		if (config.provider === 'disabled') {
@@ -199,6 +201,7 @@ export const llmApi = {
 					user_name: request.userName || '',
 					zodiac_sign: request.zodiacSign || null,
 					mbti_type: request.mbtiType || null,
+					selected_cards: request.selectedCards || [],
 					config: config
 				}
 			});

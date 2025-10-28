@@ -40,6 +40,27 @@ Provide a brief, insightful commentary (1-2 short sentences) on how this card's 
 Keep the commentary concise and to the point.
 Respond with ONLY the commentary, nothing else."#;
 
+const CARD_COMMENTARY_WITH_CONTEXT_PROMPT: &str = r#"You are a guide helping someone discover what's really bothering them through reflective card-based inquiry.
+
+A person is exploring a bug or issue in their {life_area} area. They've already selected some cards and are now considering a new card.
+
+Already selected cards:
+{selected_cards_list}
+
+New card being considered:
+Card: {card_name}
+Question: {card_question}
+Meaning: {card_meaning}
+
+Provide a brief, insightful commentary (1-2 short sentences) on:
+1. How this new card's meaning might relate to issues in their {life_area} area
+2. How it harmonizes with or conflicts with the already selected cards
+
+Help them see potential connections and patterns without being prescriptive.
+
+Keep the commentary concise and to the point.
+Respond with ONLY the commentary, nothing else."#;
+
 const MULTIPLE_CARDS_COMMENTARY_PROMPT: &str = r#"You are a guide helping someone discover what's really bothering them through reflective card-based inquiry.
 
 A person is exploring a bug or issue in their {life_area} area. They've drawn three cards that might help them understand what's blocking them.
@@ -67,6 +88,12 @@ Card context:
 - Meaning: {card_meaning}
 
 Use the card's meaning as the primary framework for understanding their situation. Ask questions that help them see connections between the card's wisdom and their lived experience.
+
+SUPPORTING CARDS:
+The person has also selected these cards as part of their exploration:
+{selected_cards_context}
+
+These cards provide additional perspectives and patterns to consider, but always keep the primary card as your main lens.
 
 Your role is to:
 - Ask thoughtful, open-ended questions rooted in the card's meaning
@@ -191,6 +218,36 @@ pub async fn comment_on_multiple_cards(
     }
 }
 
+pub async fn comment_on_card_with_context(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<String, String> {
+    match config.provider {
+        LLMProvider::Disabled => Err("LLM is disabled".to_string()),
+        LLMProvider::Ollama => comment_on_card_with_context_ollama(card_name, card_question, card_meaning, life_area, selected_cards, config).await,
+        LLMProvider::OpenAI => comment_on_card_with_context_openai(card_name, card_question, card_meaning, life_area, selected_cards, config).await,
+        LLMProvider::Anthropic => comment_on_card_with_context_anthropic(card_name, card_question, card_meaning, life_area, selected_cards, config).await,
+    }
+}
+
+pub async fn comment_on_multiple_cards_with_context(
+    cards: &[Value],
+    life_area: &str,
+    selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    match config.provider {
+        LLMProvider::Disabled => Err("LLM is disabled".to_string()),
+        LLMProvider::Ollama => comment_on_multiple_cards_with_context_ollama(cards, life_area, selected_cards, config).await,
+        LLMProvider::OpenAI => comment_on_multiple_cards_with_context_openai(cards, life_area, selected_cards, config).await,
+        LLMProvider::Anthropic => comment_on_multiple_cards_with_context_anthropic(cards, life_area, selected_cards, config).await,
+    }
+}
+
 pub async fn chat_with_history_with_profile(
     user_message: &str,
     messages: &[Value],
@@ -202,13 +259,14 @@ pub async fn chat_with_history_with_profile(
     user_name: &str,
     zodiac_sign: Option<&str>,
     mbti_type: Option<&str>,
+    selected_cards: &[Value],
     config: &LLMConfig,
 ) -> Result<String, String> {
     match config.provider {
         LLMProvider::Disabled => Err("LLM is disabled".to_string()),
-        LLMProvider::Ollama => chat_with_history_ollama(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, config).await,
-        LLMProvider::OpenAI => chat_with_history_openai(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, config).await,
-        LLMProvider::Anthropic => chat_with_history_anthropic(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, config).await,
+        LLMProvider::Ollama => chat_with_history_ollama(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, selected_cards, config).await,
+        LLMProvider::OpenAI => chat_with_history_openai(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, selected_cards, config).await,
+        LLMProvider::Anthropic => chat_with_history_anthropic(user_message, messages, card_name, card_question, card_meaning, card_insights, life_area, user_name, zodiac_sign, mbti_type, selected_cards, config).await,
     }
 }
 
@@ -825,6 +883,7 @@ async fn chat_with_history_ollama(
     user_name: &str,
     zodiac_sign: Option<&str>,
     mbti_type: Option<&str>,
+    selected_cards: &[Value],
     config: &LLMConfig,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
@@ -840,11 +899,27 @@ async fn chat_with_history_ollama(
         }
     }
 
+    // Build selected cards context
+    let mut selected_cards_context = String::new();
+    for card in selected_cards {
+        if let (Some(name), Some(question), Some(commentary)) = (
+            card.get("name").and_then(|v| v.as_str()),
+            card.get("card_question").and_then(|v| v.as_str()),
+            card.get("commentary").and_then(|v| v.as_str())
+        ) {
+            selected_cards_context.push_str(&format!(
+                "- {}: {}\n  Commentary: {}\n",
+                name, question, commentary
+            ));
+        }
+    }
+
     let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
-        .replace("{card_meaning}", card_meaning);
+        .replace("{card_meaning}", card_meaning)
+        .replace("{selected_cards_context}", if selected_cards_context.is_empty() { "No other cards selected yet." } else { &selected_cards_context });
     
     if !card_insights.is_empty() {
         system_prompt.push_str(&format!("\n\nCard Insights (generated for this life area):\n{}", card_insights));
@@ -903,16 +978,33 @@ async fn chat_with_history_openai(
     user_name: &str,
     zodiac_sign: Option<&str>,
     mbti_type: Option<&str>,
+    selected_cards: &[Value],
     config: &LLMConfig,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
     let model = map_openai_model(&config.openai_model);
 
+    // Build selected cards context
+    let mut selected_cards_context = String::new();
+    for card in selected_cards {
+        if let (Some(name), Some(question), Some(commentary)) = (
+            card.get("name").and_then(|v| v.as_str()),
+            card.get("card_question").and_then(|v| v.as_str()),
+            card.get("commentary").and_then(|v| v.as_str())
+        ) {
+            selected_cards_context.push_str(&format!(
+                "- {}: {}\n  Commentary: {}\n",
+                name, question, commentary
+            ));
+        }
+    }
+
     let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
-        .replace("{card_meaning}", card_meaning);
+        .replace("{card_meaning}", card_meaning)
+        .replace("{selected_cards_context}", if selected_cards_context.is_empty() { "No other cards selected yet." } else { &selected_cards_context });
     
     if !card_insights.is_empty() {
         system_prompt.push_str(&format!("\n\nCard Insights (generated for this life area):\n{}", card_insights));
@@ -1001,16 +1093,33 @@ async fn chat_with_history_anthropic(
     user_name: &str,
     zodiac_sign: Option<&str>,
     mbti_type: Option<&str>,
+    selected_cards: &[Value],
     config: &LLMConfig,
 ) -> Result<String, String> {
     let client = reqwest::Client::new();
     let model = map_anthropic_model(&config.anthropic_model);
 
+    // Build selected cards context
+    let mut selected_cards_context = String::new();
+    for card in selected_cards {
+        if let (Some(name), Some(question), Some(commentary)) = (
+            card.get("name").and_then(|v| v.as_str()),
+            card.get("card_question").and_then(|v| v.as_str()),
+            card.get("commentary").and_then(|v| v.as_str())
+        ) {
+            selected_cards_context.push_str(&format!(
+                "- {}: {}\n  Commentary: {}\n",
+                name, question, commentary
+            ));
+        }
+    }
+
     let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
-        .replace("{card_meaning}", card_meaning);
+        .replace("{card_meaning}", card_meaning)
+        .replace("{selected_cards_context}", if selected_cards_context.is_empty() { "No other cards selected yet." } else { &selected_cards_context });
     
     if !card_insights.is_empty() {
         system_prompt.push_str(&format!("\n\nCard Insights (generated for this life area):\n{}", card_insights));
@@ -1081,4 +1190,248 @@ async fn chat_with_history_anthropic(
         .and_then(|v| v.as_str())
         .map(|s| s.trim().to_string())
         .ok_or_else(|| "Invalid Anthropic response format".to_string())
+}
+
+// Context-aware card commentary functions
+async fn comment_on_card_with_context_ollama(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/generate", config.ollama_url);
+    let model = map_ollama_model(&config.ollama_model);
+
+    let mut selected_cards_list = String::new();
+    for card in selected_cards {
+        let name = card.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let question = card.get("question").and_then(|v| v.as_str()).unwrap_or("");
+        let meaning = card.get("meaning").and_then(|v| v.as_str()).unwrap_or("");
+        selected_cards_list.push_str(&format!(
+            "- {}\n  Question: {}\n  Meaning: {}\n",
+            name, question, meaning
+        ));
+    }
+
+    let prompt = if selected_cards.is_empty() {
+        CARD_COMMENTARY_PROMPT
+            .replace("{life_area}", life_area)
+            .replace("{card_name}", card_name)
+            .replace("{card_question}", card_question)
+            .replace("{card_meaning}", card_meaning)
+    } else {
+        CARD_COMMENTARY_WITH_CONTEXT_PROMPT
+            .replace("{life_area}", life_area)
+            .replace("{card_name}", card_name)
+            .replace("{card_question}", card_question)
+            .replace("{card_meaning}", card_meaning)
+            .replace("{selected_cards_list}", &selected_cards_list)
+    };
+
+    let response = client
+        .post(&url)
+        .json(&json!({
+            "model": model,
+            "prompt": prompt,
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ollama request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API error: {}", response.status()));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+
+    data.get("response")
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| "Invalid Ollama response format".to_string())
+}
+
+async fn comment_on_card_with_context_openai(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let model = map_openai_model(&config.openai_model);
+
+    let mut selected_cards_list = String::new();
+    for card in selected_cards {
+        let name = card.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let question = card.get("question").and_then(|v| v.as_str()).unwrap_or("");
+        let meaning = card.get("meaning").and_then(|v| v.as_str()).unwrap_or("");
+        selected_cards_list.push_str(&format!(
+            "- {}\n  Question: {}\n  Meaning: {}\n",
+            name, question, meaning
+        ));
+    }
+
+    let prompt = if selected_cards.is_empty() {
+        CARD_COMMENTARY_PROMPT
+            .replace("{life_area}", life_area)
+            .replace("{card_name}", card_name)
+            .replace("{card_question}", card_question)
+            .replace("{card_meaning}", card_meaning)
+    } else {
+        CARD_COMMENTARY_WITH_CONTEXT_PROMPT
+            .replace("{life_area}", life_area)
+            .replace("{card_name}", card_name)
+            .replace("{card_question}", card_question)
+            .replace("{card_meaning}", card_meaning)
+            .replace("{selected_cards_list}", &selected_cards_list)
+    };
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", config.openai_api_key))
+        .json(&json!({
+            "model": model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 200
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("OpenAI request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("OpenAI API error: {}", error_text));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
+
+    data.get("choices")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|msg| msg.get("content"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| "Invalid OpenAI response format".to_string())
+}
+
+async fn comment_on_card_with_context_anthropic(
+    card_name: &str,
+    card_question: &str,
+    card_meaning: &str,
+    life_area: &str,
+    selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let model = map_anthropic_model(&config.anthropic_model);
+
+    let mut selected_cards_list = String::new();
+    for card in selected_cards {
+        let name = card.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let question = card.get("question").and_then(|v| v.as_str()).unwrap_or("");
+        let meaning = card.get("meaning").and_then(|v| v.as_str()).unwrap_or("");
+        selected_cards_list.push_str(&format!(
+            "- {}\n  Question: {}\n  Meaning: {}\n",
+            name, question, meaning
+        ));
+    }
+
+    let prompt = if selected_cards.is_empty() {
+        CARD_COMMENTARY_PROMPT
+            .replace("{life_area}", life_area)
+            .replace("{card_name}", card_name)
+            .replace("{card_question}", card_question)
+            .replace("{card_meaning}", card_meaning)
+    } else {
+        CARD_COMMENTARY_WITH_CONTEXT_PROMPT
+            .replace("{life_area}", life_area)
+            .replace("{card_name}", card_name)
+            .replace("{card_question}", card_question)
+            .replace("{card_meaning}", card_meaning)
+            .replace("{selected_cards_list}", &selected_cards_list)
+    };
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("Content-Type", "application/json")
+        .header("x-api-key", &config.anthropic_api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&json!({
+            "model": model,
+            "max_tokens": 200,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("Anthropic API error: {}", error_text));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Anthropic response: {}", e))?;
+
+    data.get("content")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|item| item.get("text"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.trim().to_string())
+        .ok_or_else(|| "Invalid Anthropic response format".to_string())
+}
+
+// Multiple cards with context implementations
+async fn comment_on_multiple_cards_with_context_ollama(
+    cards: &[Value],
+    life_area: &str,
+    _selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    comment_on_multiple_cards_ollama(cards, life_area, config).await
+}
+
+async fn comment_on_multiple_cards_with_context_openai(
+    cards: &[Value],
+    life_area: &str,
+    _selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    comment_on_multiple_cards_openai(cards, life_area, config).await
+}
+
+async fn comment_on_multiple_cards_with_context_anthropic(
+    cards: &[Value],
+    life_area: &str,
+    _selected_cards: &[Value],
+    config: &LLMConfig,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    comment_on_multiple_cards_anthropic(cards, life_area, config).await
 }

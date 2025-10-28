@@ -118,7 +118,7 @@
 			class={`${navLinkStyles} ${isActive('/bugs') ? navLinkActiveStyles : ''}`}
 		>
 			<Bug size={20} />
-			<span>Bug Tracker</span>
+			<span>Bugs</span>
 		</a>
 	</div>
 

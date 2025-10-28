@@ -28,6 +28,7 @@
 	let discoveredBugDescription = $state('');
 	let isGeneratingWithAI = $state(false);
 	let userMessageCount = $state(0);
+	let showDrawnCards = $state(false);
 	const MAX_SELECTED_CARDS = 3;
 	const NUDGE_THRESHOLD = 5;
 
@@ -133,6 +134,28 @@
 		lineHeight: '1.5'
 	});
 
+	const twoColumnLayoutStyles = css({
+		display: 'grid',
+		gridTemplateColumns: '1fr 2fr',
+		gap: '2rem',
+		marginTop: '2rem',
+		'@media (max-width: 1024px)': {
+			gridTemplateColumns: '1fr',
+			gap: '1.5rem'
+		}
+	});
+
+	const leftColumnStyles = css({
+		display: 'flex',
+		flexDirection: 'column',
+		gap: '1.5rem'
+	});
+
+	const rightColumnStyles = css({
+		display: 'flex',
+		flexDirection: 'column'
+	});
+
 	const chatContainerStyles = css({
 		backgroundColor: 'liminal.surface',
 		backdropFilter: 'blur(4px)',
@@ -141,16 +164,19 @@
 		boxShadow: 'void',
 		border: '1px solid',
 		borderColor: 'border.liminal',
-		marginTop: '2rem'
+		display: 'flex',
+		flexDirection: 'column',
+		height: '100%'
 	});
 
 	const messagesContainerStyles = css({
-		maxHeight: '400px',
+		flex: 1,
 		overflowY: 'auto',
 		marginBottom: '1.5rem',
 		display: 'flex',
 		flexDirection: 'column',
-		gap: '1rem'
+		gap: '1rem',
+		minHeight: '300px'
 	});
 
 	const messageStyles = css({
@@ -385,7 +411,12 @@
 				cardName: card.name,
 				cardQuestion: card.card_question,
 				cardMeaning: card.core_meaning,
-				lifeArea: selectedBlock
+				lifeArea: selectedBlock,
+				selectedCards: selectedCards.map(c => ({
+					name: c.name,
+					question: c.card_question,
+					meaning: c.core_meaning
+				}))
 			});
 			cardCommentaries[cardId] = response.commentary;
 		} catch (error) {
@@ -411,7 +442,12 @@
 					question: card.card_question,
 					meaning: card.core_meaning
 				})),
-				lifeArea: selectedBlock
+				lifeArea: selectedBlock,
+				selectedCards: selectedCards.map(c => ({
+					name: c.name,
+					question: c.card_question,
+					meaning: c.core_meaning
+				}))
 			});
 			
 			// Update commentaries for all cards
@@ -442,25 +478,112 @@
 		cardCommentaries = {};
 		loadingCommentaries = {};
 		userMessageCount = 0;
+		showDrawnCards = false;
 	}
 
 	function drawNewCards() {
 		drawCards();
-		selectedCard = null;
-		userMessageCount = 0;
+		showDrawnCards = true;
+		// Only reset if we haven't started a conversation yet
+		if (selectedCards.length === 0) {
+			selectedCard = null;
+			conversationMessages = [];
+			userMessageCount = 0;
+		}
 	}
 
-	function selectCard(card: Card) {
-		selectedCard = card;
-		selectedPrompt = getRandomPrompt(card.perspective_prompts);
-		// Start the conversation with an initial message from the assistant
-		conversationMessages = [
-			{
-				role: 'assistant',
-				content: `You've selected "${card.name}" ${card.emoji}. What about the card's insight resonates with you?`,
-				timestamp: new Date().toISOString()
+	function toggleCardSelection(card: Card) {
+		const isSelected = selectedCards.some(c => c.id === card.id);
+		const isNewCard = showDrawnCards; // True if selecting from the "Draw New Cards" section
+		
+		if (isSelected) {
+			// Remove card if already selected
+			selectedCards = selectedCards.filter(c => c.id !== card.id);
+			// If we removed the active card, switch to the first remaining card
+			if (selectedCard?.id === card.id && selectedCards.length > 0) {
+				selectedCard = selectedCards[0];
+				selectedPrompt = getRandomPrompt(selectedCard.perspective_prompts);
 			}
-		];
+		} else if (selectedCards.length < MAX_SELECTED_CARDS) {
+			// Add card if under limit
+			selectedCards = [...selectedCards, card];
+			// If this is the first card, start the conversation
+			if (selectedCards.length === 1) {
+				selectedCard = card;
+				selectedPrompt = getRandomPrompt(card.perspective_prompts);
+				conversationMessages = [
+					{
+						role: 'assistant',
+						content: `You've selected "${card.name}" ${card.emoji}. What about the card's insight resonates with you?`,
+						timestamp: new Date().toISOString()
+					}
+				];
+				showDrawnCards = false;
+			} else if (isNewCard) {
+				// If selecting a new card from the "Draw New Cards" section, switch to it and get LLM response
+				selectedCard = card;
+				selectedPrompt = getRandomPrompt(card.perspective_prompts);
+				showDrawnCards = false;
+				// Automatically get LLM response for the new card
+				getNewCardResponse(card);
+			}
+		}
+	}
+
+	async function getNewCardResponse(card: Card) {
+		if (!selectedBlock) return;
+
+		isLoading = true;
+		try {
+			const cardId = String(card.id);
+			const cardInsights = cardCommentaries[cardId] || '';
+			
+			// Build selected cards array with commentaries
+			const selectedCardsWithCommentary = selectedCards
+				.filter(c => c.id !== card.id) // Exclude the current card
+				.map(c => ({
+					id: c.id,
+					name: c.name,
+					card_question: c.card_question,
+					core_meaning: c.core_meaning,
+					emoji: c.emoji,
+					commentary: cardCommentaries[String(c.id)] || ''
+				}));
+			
+			const response = await llmApi.chatWithHistory({
+				userMessage: `I've selected a new card: "${card.name}" ${card.emoji}. How does this card's insight relate to what we've been exploring?`,
+				messages: conversationMessages.map(msg => ({
+					role: msg.role,
+					content: msg.content
+				})),
+				cardName: card.name,
+				cardQuestion: card.card_question,
+				cardMeaning: card.core_meaning,
+				cardInsights: cardInsights,
+				lifeArea: selectedBlock,
+				userName: userProfile.profile.name,
+				zodiacSign: userProfile.profile.zodiacSign,
+				mbtiType: userProfile.profile.mbtiType,
+				selectedCards: selectedCardsWithCommentary
+			});
+
+			const assistantMessage: ConversationMessage = {
+				role: 'assistant',
+				content: response.response,
+				timestamp: new Date().toISOString()
+			};
+			conversationMessages = [...conversationMessages, assistantMessage];
+		} catch (error) {
+			console.error('Failed to get response for new card:', error);
+			const errorMessage: ConversationMessage = {
+				role: 'assistant',
+				content: 'Sorry, I encountered an error. Please try again.',
+				timestamp: new Date().toISOString()
+			};
+			conversationMessages = [...conversationMessages, errorMessage];
+		} finally {
+			isLoading = false;
+		}
 	}
 
 	async function sendMessage() {
@@ -482,6 +605,18 @@
 			const cardId = String(selectedCard.id);
 			const cardInsights = cardCommentaries[cardId] || '';
 			
+			// Build selected cards array with commentaries
+			const selectedCardsWithCommentary = selectedCards
+				.filter(c => c.id !== selectedCard.id) // Exclude the current card
+				.map(c => ({
+					id: c.id,
+					name: c.name,
+					card_question: c.card_question,
+					core_meaning: c.core_meaning,
+					emoji: c.emoji,
+					commentary: cardCommentaries[String(c.id)] || ''
+				}));
+			
 			const response = await llmApi.chatWithHistory({
 				userMessage: currentMessage,
 				messages: conversationMessages.map(msg => ({
@@ -495,7 +630,8 @@
 				lifeArea: selectedBlock,
 				userName: userProfile.profile.name,
 				zodiacSign: userProfile.profile.zodiacSign,
-				mbtiType: userProfile.profile.mbtiType
+				mbtiType: userProfile.profile.mbtiType,
+				selectedCards: selectedCardsWithCommentary
 			});
 
 			const assistantMessage: ConversationMessage = {
@@ -549,7 +685,7 @@
 
 		try {
 			// Collect all cards that were selected during the discovery process
-			const cardsUsed = selectedCard ? [selectedCard.id] : [];
+			const cardsUsed = selectedCards.map(card => card.id);
 			
 			const bug = await bugsApi.create({
 				title: discoveredBugTitle,
@@ -615,14 +751,23 @@
 				{/each}
 			</div>
 		{:else if !selectedCard}
+			<div class={css({ marginBottom: '1.5rem' })}>
+				<div class={css({ fontSize: 'sm', color: 'text.secondary', marginBottom: '1rem' })}>
+					Select a card to begin. You can add more cards while chatting.
+				</div>
+			</div>
+
 			<div class={cardsContainerStyles}>
 				{#each drawnCards as card (card.id)}
 					{@const cardId = String(card.id)}
 					{@const commentary = cardCommentaries[cardId]}
 					{@const isLoading = loadingCommentaries[cardId]}
+					{@const isCardSelected = selectedCards.some(c => c.id === card.id)}
 					<button
-						class={cardStyles}
-						onclick={() => selectCard(card)}
+						class={`${cardStyles} ${isCardSelected ? cardSelectedStyles : ''}`}
+						onclick={() => toggleCardSelection(card)}
+						disabled={!isCardSelected && selectedCards.length >= MAX_SELECTED_CARDS}
+						style={!isCardSelected && selectedCards.length >= MAX_SELECTED_CARDS ? 'opacity: 0.5; cursor: not-allowed;' : ''}
 					>
 						<div class={cardEmojiStyles}>{card.emoji}</div>
 						<div class={cardNameStyles}>{card.name}</div>
@@ -642,52 +787,101 @@
 			</div>
 
 			<div class={css({ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', marginTop: '2rem', flexWrap: 'wrap' })}>
-				<div class={css({ fontSize: 'md', color: 'text.muted', textAlign: 'center' })}>
-					Which card resonates with you the most? If none do, redraw.
-				</div>
 				<Button onclick={drawNewCards} variant="secondary">
 					Redraw Cards
 				</Button>
 			</div>
 		{:else if !bugDiscovered}
-			<div class={selectedCardDisplayStyles}>
-				<div class={selectedCardEmojiStyles}>{selectedCard.emoji}</div>
-				<div class={selectedCardInfoStyles}>
-					<div class={selectedCardNameStyles}>{selectedCard.name}</div>
-					<div class={css({ fontSize: 'sm', color: 'text.accent', marginTop: '0.75rem', fontStyle: 'italic', lineHeight: '1.4' })}>
-						{selectedPrompt}
+			<div class={twoColumnLayoutStyles}>
+				<!-- Left Column: Selected Cards -->
+				<div class={leftColumnStyles}>
+					<div>
+						<h3 class={css({ fontSize: 'md', fontWeight: 'semibold', color: 'text.primary', marginBottom: '1rem' })}>
+							Selected Cards ({selectedCards.length} / {MAX_SELECTED_CARDS})
+						</h3>
+						<div class={css({ display: 'flex', flexDirection: 'column', gap: '1rem' })}>
+							{#each selectedCards as card (card.id)}
+								{@const cardId = String(card.id)}
+								{@const commentary = cardCommentaries[cardId]}
+								{@const isLoading = loadingCommentaries[cardId]}
+								<div class={css({ backgroundColor: 'void.800', borderRadius: 'lg', padding: '1rem', border: '1px solid', borderColor: 'border.liminal' })}>
+									<div class={css({ fontSize: '2xl', marginBottom: '0.5rem' })}>{card.emoji}</div>
+									<div class={css({ fontSize: 'sm', fontWeight: 'semibold', color: 'text.primary', marginBottom: '0.5rem' })}>{card.name}</div>
+									<div class={css({ fontSize: 'xs', color: 'text.secondary', lineHeight: '1.4' })}>{card.card_question}</div>
+									{#if isLoading}
+										<div style="margin-top: 0.75rem;">
+											<Loader size={12} />
+										</div>
+									{:else if commentary}
+										<div style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--colors-border-liminal); font-size: 0.75rem; color: var(--colors-text-accent); line-height: 1.4;">
+											{commentary}
+										</div>
+									{/if}
+								</div>
+							{/each}
+						</div>
+					</div>
+
+					{#if showDrawnCards}
+						<div>
+							<h3 class={css({ fontSize: 'md', fontWeight: 'semibold', color: 'text.primary', marginBottom: '1rem' })}>
+								Draw New Cards
+							</h3>
+							<div class={css({ display: 'flex', flexDirection: 'column', gap: '1rem' })}>
+								{#each drawnCards as card (card.id)}
+									{@const cardId = String(card.id)}
+									{@const commentary = cardCommentaries[cardId]}
+									{@const isLoading = loadingCommentaries[cardId]}
+									{@const isCardSelected = selectedCards.some(c => c.id === card.id)}
+									<button
+										class={`${cardStyles} ${isCardSelected ? cardSelectedStyles : ''}`}
+										onclick={() => toggleCardSelection(card)}
+										disabled={!isCardSelected && selectedCards.length >= MAX_SELECTED_CARDS}
+										style={!isCardSelected && selectedCards.length >= MAX_SELECTED_CARDS ? 'opacity: 0.5; cursor: not-allowed;' : ''}
+									>
+										<div class={cardEmojiStyles}>{card.emoji}</div>
+										<div class={cardNameStyles}>{card.name}</div>
+										<div class={cardQuestionStyles}>{card.card_question}</div>
+										<div class={cardMeaningStyles}>{card.core_meaning}</div>
+										{#if isLoading}
+											<div style="margin-top: 1rem;">
+												<Loader size={16} />
+											</div>
+										{:else if commentary}
+											<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--colors-border-liminal); font-size: 0.875rem; color: var(--colors-text-accent); line-height: 1.5;">
+												{commentary}
+											</div>
+										{/if}
+									</button>
+								{/each}
+							</div>
+							<div style="margin-top: 1rem; text-align: center;">
+								<Button onclick={drawNewCards} variant="secondary">
+									Redraw Cards
+								</Button>
+							</div>
+						</div>
+					{/if}
+
+					<div style="display: flex; gap: 1rem; justify-content: center; align-items: center; flex-wrap: wrap;">
+						<Button
+							variant="outline"
+							onclick={resetToBlockSelection}
+						>
+							← Back to Blocks
+						</Button>
+						<Button
+							variant="outline"
+							onclick={drawNewCards}
+						>
+							Draw New Card
+						</Button>
 					</div>
 				</div>
-			</div>
 
-			{#if selectedCard}
-				{@const cardId = String(selectedCard.id)}
-				{@const commentary = cardCommentaries[cardId]}
-				{@const isLoading = loadingCommentaries[cardId]}
-				{#if commentary || isLoading}
-					<div class={accordionStyles}>
-						<Accordion.Root type="single">
-							<Accordion.Item value="commentary" class={accordionItemStyles}>
-								<Accordion.Trigger class={accordionTriggerStyles}>
-									<span>Card Insight</span>
-									<ChevronDown size={18} style="transition: transform 0.2s;" />
-								</Accordion.Trigger>
-								<Accordion.Content class={accordionContentStyles}>
-									{#if isLoading}
-										<div>
-											<Loader size={16} text="Loading insight..." />
-										</div>
-									{:else}
-										{commentary}
-									{/if}
-								</Accordion.Content>
-							</Accordion.Item>
-						</Accordion.Root>
-					</div>
-				{/if}
-			{/if}
-
-			<div class={chatContainerStyles}>
+				<!-- Right Column: Chat -->
+				<div class={rightColumnStyles}>
+					<div class={chatContainerStyles}>
 				<div class={messagesContainerStyles}>
 					{#each conversationMessages as message}
 						<div
@@ -698,57 +892,47 @@
 					{/each}
 				</div>
 
-				<div class={inputContainerStyles}>
-					<textarea
-						bind:value={userMessage}
-						class={textareaStyles}
-						placeholder="Share what's on your mind..."
-						onkeydown={(e) => {
-							if (e.key === 'Enter' && !e.shiftKey) {
-								e.preventDefault();
-								sendMessage();
-							}
-						}}
-					></textarea>
-					<Button
-						variant="primary"
-						onclick={sendMessage}
-						disabled={!userMessage.trim() || isLoading}
-					>
-						<Send size={20} />
-					</Button>
-				</div>
+						<div class={inputContainerStyles}>
+							<textarea
+								bind:value={userMessage}
+								class={textareaStyles}
+								placeholder="Share what's on your mind..."
+								onkeydown={(e) => {
+									if (e.key === 'Enter' && !e.shiftKey) {
+										e.preventDefault();
+										sendMessage();
+									}
+								}}
+							></textarea>
+							<Button
+								variant="primary"
+								onclick={sendMessage}
+								disabled={!userMessage.trim() || isLoading}
+							>
+								<Send size={20} />
+							</Button>
+						</div>
 
-				<div style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: center; align-items: center; flex-wrap: wrap;">
-					<Button
-						variant="outline"
-						onclick={resetToBlockSelection}
-					>
-						← Back to Blocks
-					</Button>
-					<Button
-						variant="outline"
-						onclick={drawNewCards}
-					>
-						Draw New Card
-					</Button>
-					<Button
-						variant="primary"
-						onclick={() => {
-							bugDiscovered = true;
-							// Use conversation content as placeholder for description
-							if (conversationMessages.length > 0) {
-								const userMessages = conversationMessages
-									.filter(m => m.role === 'user')
-									.map(m => m.content)
-									.join('\n\n');
-								discoveredBugDescription = userMessages || 'Describe what you\'ve uncovered...';
-							}
-						}}
-					>
-						<CheckCircle size={20} />
-						I've Found It!
-					</Button>
+						<div style="margin-top: 1rem; display: flex; gap: 1rem; justify-content: flex-end; align-items: center; flex-wrap: wrap;">
+							<Button
+								variant="primary"
+								onclick={() => {
+									bugDiscovered = true;
+									// Use conversation content as placeholder for description
+									if (conversationMessages.length > 0) {
+										const userMessages = conversationMessages
+											.filter(m => m.role === 'user')
+											.map(m => m.content)
+											.join('\n\n');
+										discoveredBugDescription = userMessages || 'Describe what you\'ve uncovered...';
+									}
+								}}
+							>
+								<CheckCircle size={20} />
+								I've Found It!
+							</Button>
+						</div>
+					</div>
 				</div>
 			</div>
 		{:else}

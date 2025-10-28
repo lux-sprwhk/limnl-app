@@ -148,10 +148,15 @@ pub async fn comment_on_card(
         .get("life_area")
         .and_then(|v| v.as_str())
         .ok_or("Missing life_area")?;
+    let empty_cards = vec![];
+    let selected_cards = request
+        .get("selected_cards")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&empty_cards);
     let config = serde_json::from_value(request.get("config").ok_or("Missing config")?.clone())
         .map_err(|e| format!("Invalid config: {}", e))?;
 
-    let commentary = client::comment_on_card(card_name, card_question, card_meaning, life_area, &config).await?;
+    let commentary = client::comment_on_card_with_context(card_name, card_question, card_meaning, life_area, selected_cards, &config).await?;
     Ok(CardCommentaryResponse { commentary })
 }
 
@@ -167,10 +172,15 @@ pub async fn comment_on_multiple_cards(
         .get("life_area")
         .and_then(|v| v.as_str())
         .ok_or("Missing life_area")?;
+    let empty_cards = vec![];
+    let selected_cards = request
+        .get("selected_cards")
+        .and_then(|v| v.as_array())
+        .unwrap_or(&empty_cards);
     let config = serde_json::from_value(request.get("config").ok_or("Missing config")?.clone())
         .map_err(|e| format!("Invalid config: {}", e))?;
 
-    let commentaries = client::comment_on_multiple_cards(cards, life_area, &config).await?;
+    let commentaries = client::comment_on_multiple_cards_with_context(cards, life_area, selected_cards, &config).await?;
     Ok(serde_json::json!({ "commentaries": commentaries }))
 }
 
@@ -219,6 +229,11 @@ pub async fn chat_with_history(
     let mbti_type = request
         .get("mbti_type")
         .and_then(|v| v.as_str());
+    let selected_cards = request
+        .get("selected_cards")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
 
     let response = client::chat_with_history_with_profile(
         user_message,
@@ -231,6 +246,7 @@ pub async fn chat_with_history(
         user_name,
         zodiac_sign,
         mbti_type,
+        &selected_cards,
         &config,
     )
     .await?;
