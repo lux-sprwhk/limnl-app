@@ -65,3 +65,29 @@ pub struct UpdateBugInput {
     pub conversation_history: Option<String>,
     pub resolved_at: Option<DateTime<Utc>>,
 }
+
+// Mind dump models
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindDump {
+    pub id: Option<i64>,
+    pub title: Option<String>,
+    pub content: String,
+    pub word_count: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateMindDumpInput {
+    pub title: Option<String>,
+    pub content: String,
+    pub word_count: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateMindDumpInput {
+    pub id: i64,
+    pub title: Option<String>,
+    pub content: Option<String>,
+    pub word_count: Option<i32>,
+}

@@ -4,7 +4,7 @@
 	import type { Bug } from '$lib/types/bug';
 	import { bugsApi } from '$lib/api/bugs';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { Sparkles, CheckCircle, Archive, Trash2 } from 'lucide-svelte';
+	import { Sparkles, Plus, CheckCircle, Archive, Trash2 } from 'lucide-svelte';
 
 	let bugs = $state<Bug[]>([]);
 	let isLoading = $state(true);
@@ -37,6 +37,12 @@
 		display: 'flex',
 		alignItems: 'center',
 		gap: '0.75rem'
+	});
+
+	const buttonGroupStyles = css({
+		display: 'flex',
+		gap: '1rem',
+		alignItems: 'center'
 	});
 
 	const filterStyles = css({
@@ -206,10 +212,16 @@
 			<h1 class={titleStyles}>
 				Bug Tracker
 			</h1>
-			<Button variant="primary" onclick={() => window.location.href = '/cards/draw'}>
-				<Sparkles size={20} />
-				Discover New Bug
-			</Button>
+			<div class={buttonGroupStyles}>
+				<Button variant="primary" onclick={() => window.location.href = '/bugs/create'}>
+					<Plus size={20} />
+					Create New Bug
+				</Button>
+				<Button variant="primary" onclick={() => window.location.href = '/bugs/discover'}>
+					<Sparkles size={20} />
+					Discover New Bug
+				</Button>
+			</div>
 		</div>
 
 		<div class={filterStyles}>

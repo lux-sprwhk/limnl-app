@@ -110,3 +110,70 @@ pub fn delete_bug(
 ) -> Result<bool, String> {
     db.delete_bug(id).map_err(|e| e.to_string())
 }
+
+// Bug LLM commands
+#[tauri::command]
+pub async fn optimize_bug_description(
+    request: OptimizeDescriptionRequest,
+) -> Result<OptimizeDescriptionResponse, String> {
+    let optimized = client::optimize_description(&request.content, &request.config).await?;
+    Ok(OptimizeDescriptionResponse { optimized })
+}
+
+#[tauri::command]
+pub async fn generate_bug_title(
+    request: GenerateTitleRequest,
+) -> Result<GenerateTitleResponse, String> {
+    let title = client::generate_title(&request.content, &request.config).await?;
+    Ok(GenerateTitleResponse { title })
+}
+
+// Mind dump commands
+#[tauri::command]
+pub fn create_mind_dump(
+    db: State<Database>,
+    input: CreateMindDumpInput,
+) -> Result<MindDump, String> {
+    db.create_mind_dump(input).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_mind_dump(
+    db: State<Database>,
+    id: i64,
+) -> Result<Option<MindDump>, String> {
+    db.get_mind_dump(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn list_mind_dumps(
+    db: State<Database>,
+    limit: Option<i64>,
+    offset: Option<i64>,
+) -> Result<Vec<MindDump>, String> {
+    db.list_mind_dumps(limit, offset).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn update_mind_dump(
+    db: State<Database>,
+    input: UpdateMindDumpInput,
+) -> Result<Option<MindDump>, String> {
+    db.update_mind_dump(input).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn delete_mind_dump(
+    db: State<Database>,
+    id: i64,
+) -> Result<bool, String> {
+    db.delete_mind_dump(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn search_mind_dumps(
+    db: State<Database>,
+    query: String,
+) -> Result<Vec<MindDump>, String> {
+    db.search_mind_dumps(&query).map_err(|e| e.to_string())
+}

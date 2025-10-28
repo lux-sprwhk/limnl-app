@@ -61,5 +61,65 @@ export const llmApi = {
 			}
 			throw new Error('Failed to optimize description');
 		}
+	},
+
+	optimizeBugDescription: async (request: { content: string }) => {
+		const config = llmSettings.config;
+
+		if (config.provider === 'disabled') {
+			throw new Error('LLM provider is disabled. Please configure an LLM provider in settings.');
+		}
+
+		if (!request.content || request.content.trim().length === 0) {
+			throw new Error('Bug description is required to optimize.');
+		}
+
+		try {
+			const response = await invoke<{ optimized: string }>('optimize_bug_description', {
+				request: {
+					content: request.content,
+					config: config
+				}
+			});
+			return response;
+		} catch (error) {
+			if (error instanceof Error) {
+				throw error;
+			}
+			if (typeof error === 'string') {
+				throw new Error(error);
+			}
+			throw new Error('Failed to optimize bug description');
+		}
+	},
+
+	generateBugTitle: async (request: { content: string }) => {
+		const config = llmSettings.config;
+
+		if (config.provider === 'disabled') {
+			throw new Error('LLM provider is disabled. Please configure an LLM provider in settings.');
+		}
+
+		if (!request.content || request.content.trim().length === 0) {
+			throw new Error('Bug description is required to generate a title.');
+		}
+
+		try {
+			const response = await invoke<GenerateTitleResponse>('generate_bug_title', {
+				request: {
+					content: request.content,
+					config: config
+				}
+			});
+			return response;
+		} catch (error) {
+			if (error instanceof Error) {
+				throw error;
+			}
+			if (typeof error === 'string') {
+				throw new Error(error);
+			}
+			throw new Error('Failed to generate bug title');
+		}
 	}
 };

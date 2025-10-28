@@ -30,6 +30,12 @@ pub fn run() {
             commands::list_bugs,
             commands::update_bug,
             commands::delete_bug,
+            commands::create_mind_dump,
+            commands::get_mind_dump,
+            commands::list_mind_dumps,
+            commands::update_mind_dump,
+            commands::delete_mind_dump,
+            commands::search_mind_dumps,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
