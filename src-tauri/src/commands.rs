@@ -155,6 +155,69 @@ pub async fn comment_on_card(
     Ok(CardCommentaryResponse { commentary })
 }
 
+#[tauri::command]
+pub async fn comment_on_multiple_cards(
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let cards = request
+        .get("cards")
+        .and_then(|v| v.as_array())
+        .ok_or("Missing cards array")?;
+    let life_area = request
+        .get("life_area")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing life_area")?;
+    let config = serde_json::from_value(request.get("config").ok_or("Missing config")?.clone())
+        .map_err(|e| format!("Invalid config: {}", e))?;
+
+    let commentaries = client::comment_on_multiple_cards(cards, life_area, &config).await?;
+    Ok(serde_json::json!({ "commentaries": commentaries }))
+}
+
+#[tauri::command]
+pub async fn chat_with_history(
+    request: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    let user_message = request
+        .get("user_message")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing user_message")?;
+    let messages = request
+        .get("messages")
+        .and_then(|v| v.as_array())
+        .ok_or("Missing messages array")?;
+    let card_name = request
+        .get("card_name")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing card_name")?;
+    let card_question = request
+        .get("card_question")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing card_question")?;
+    let card_meaning = request
+        .get("card_meaning")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing card_meaning")?;
+    let life_area = request
+        .get("life_area")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing life_area")?;
+    let config = serde_json::from_value(request.get("config").ok_or("Missing config")?.clone())
+        .map_err(|e| format!("Invalid config: {}", e))?;
+
+    let response = client::chat_with_history(
+        user_message,
+        messages,
+        card_name,
+        card_question,
+        card_meaning,
+        life_area,
+        &config,
+    )
+    .await?;
+    Ok(serde_json::json!({ "response": response }))
+}
+
 // Mind dump commands
 #[tauri::command]
 pub fn create_mind_dump(

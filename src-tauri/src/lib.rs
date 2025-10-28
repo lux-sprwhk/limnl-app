@@ -33,6 +33,8 @@ pub fn run() {
             commands::optimize_bug_description,
             commands::generate_bug_title,
             commands::comment_on_card,
+            commands::comment_on_multiple_cards,
+            commands::chat_with_history,
             commands::create_mind_dump,
             commands::get_mind_dump,
             commands::list_mind_dumps,

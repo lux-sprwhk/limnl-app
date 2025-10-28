@@ -24,8 +24,7 @@
 	let bugDiscovered = $state(false);
 	let discoveredBugTitle = $state('');
 	let discoveredBugDescription = $state('');
-	let cardDrawCount = $state(0);
-	const MAX_CARD_DRAWS = 3;
+	const MAX_SELECTED_CARDS = 3;
 
 	function getRandomPrompt(prompts: string[]): string {
 		return prompts[Math.floor(Math.random() * prompts.length)];
@@ -363,13 +362,10 @@
 		const allCards = cardsData.cards;
 		const shuffled = [...allCards].sort(() => Math.random() - 0.5);
 		drawnCards = shuffled.slice(0, 3);
-		cardDrawCount += 1;
 		
-		// Generate commentaries for each card if LLM is configured
+		// Generate commentaries for all cards in one call if LLM is configured
 		if (selectedBlock && llmSettings.config.provider !== 'disabled') {
-			drawnCards.forEach(card => {
-				generateCardCommentary(card);
-			});
+			generateMultipleCardCommentaries(drawnCards);
 		}
 	}
 
@@ -394,6 +390,39 @@
 		}
 	}
 
+	async function generateMultipleCardCommentaries(cards: Card[]) {
+		if (!selectedBlock) return;
+
+		// Set all cards as loading
+		cards.forEach(card => {
+			loadingCommentaries[String(card.id)] = true;
+		});
+
+		try {
+			const response = await llmApi.commentOnMultipleCards({
+				cards: cards.map(card => ({
+					id: card.id,
+					name: card.name,
+					question: card.card_question,
+					meaning: card.core_meaning
+				})),
+				lifeArea: selectedBlock
+			});
+			
+			// Update commentaries for all cards
+			Object.entries(response.commentaries).forEach(([cardId, commentary]) => {
+				cardCommentaries[cardId] = commentary as string;
+			});
+		} catch (error) {
+			console.error('Failed to generate card commentaries:', error);
+		} finally {
+			// Clear loading state for all cards
+			cards.forEach(card => {
+				delete loadingCommentaries[String(card.id)];
+			});
+		}
+	}
+
 	function selectBlock(block: 'life' | 'work' | 'creative' | 'relationship') {
 		selectedBlock = block;
 		drawCards();
@@ -405,16 +434,13 @@
 		selectedCard = null;
 		selectedCards = [];
 		conversationMessages = [];
-		cardDrawCount = 0;
 		cardCommentaries = {};
 		loadingCommentaries = {};
 	}
 
 	function drawNewCards() {
-		if (cardDrawCount < 3) {
-			drawCards();
-			selectedCard = null;
-		}
+		drawCards();
+		selectedCard = null;
 	}
 
 	function selectCard(card: Card) {
@@ -424,14 +450,14 @@
 		conversationMessages = [
 			{
 				role: 'assistant',
-				content: `You've selected "${card.name}" ${card.emoji}. ${card.card_question}\n\nTell me, what's been on your mind lately? What feels stuck or unclear?`,
+				content: `You've selected "${card.name}" ${card.emoji}. What about the card's insight resonates with you?`,
 				timestamp: new Date().toISOString()
 			}
 		];
 	}
 
 	async function sendMessage() {
-		if (!userMessage.trim() || isLoading) return;
+		if (!userMessage.trim() || isLoading || !selectedCard || !selectedBlock) return;
 
 		const newMessage: ConversationMessage = {
 			role: 'user',
@@ -444,17 +470,36 @@
 		userMessage = '';
 		isLoading = true;
 
-		// TODO: Integrate with LLM for actual conversation
-		// For now, simulate a response
-		setTimeout(() => {
+		try {
+			const response = await llmApi.chatWithHistory({
+				userMessage: currentMessage,
+				messages: conversationMessages.map(msg => ({
+					role: msg.role,
+					content: msg.content
+				})),
+				cardName: selectedCard.name,
+				cardQuestion: selectedCard.card_question,
+				cardMeaning: selectedCard.core_meaning,
+				lifeArea: selectedBlock
+			});
+
 			const assistantMessage: ConversationMessage = {
 				role: 'assistant',
-				content: `I understand. Let's explore this further. Can you tell me more about when you first noticed this issue?`,
+				content: response.response,
 				timestamp: new Date().toISOString()
 			};
 			conversationMessages = [...conversationMessages, assistantMessage];
+		} catch (error) {
+			console.error('Failed to get chat response:', error);
+			const errorMessage: ConversationMessage = {
+				role: 'assistant',
+				content: 'Sorry, I encountered an error. Please try again.',
+				timestamp: new Date().toISOString()
+			};
+			conversationMessages = [...conversationMessages, errorMessage];
+		} finally {
 			isLoading = false;
-		}, 1000);
+		}
 	}
 
 	async function saveBug() {
@@ -550,6 +595,15 @@
 					</button>
 				{/each}
 			</div>
+
+			<div class={css({ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', marginTop: '2rem', flexWrap: 'wrap' })}>
+				<div class={css({ fontSize: 'md', color: 'text.muted', textAlign: 'center' })}>
+					Which card resonates with you the most? If none do, redraw.
+				</div>
+				<Button onclick={drawNewCards} variant="secondary">
+					Redraw Cards
+				</Button>
+			</div>
 		{:else if !bugDiscovered}
 			<div class={selectedCardDisplayStyles}>
 				<div class={selectedCardEmojiStyles}>{selectedCard.emoji}</div>
@@ -630,13 +684,9 @@
 					<Button
 						variant="outline"
 						onclick={drawNewCards}
-						disabled={cardDrawCount >= MAX_CARD_DRAWS}
 					>
 						Draw New Card
 					</Button>
-					<span style="font-size: 0.875rem; color: var(--colors-text-muted);">
-						{cardDrawCount} / {MAX_CARD_DRAWS} draws
-					</span>
 					<Button
 						variant="primary"
 						onclick={() => {
