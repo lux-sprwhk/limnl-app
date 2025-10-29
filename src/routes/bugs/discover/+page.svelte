@@ -29,6 +29,7 @@
 	let isGeneratingWithAI = $state(false);
 	let userMessageCount = $state(0);
 	let showDrawnCards = $state(false);
+	let isSelectingCards = $state(false);
 	const MAX_SELECTED_CARDS = 3;
 	const NUDGE_THRESHOLD = 5;
 
@@ -166,7 +167,7 @@
 		borderColor: 'border.liminal',
 		display: 'flex',
 		flexDirection: 'column',
-		height: '100%'
+		maxHeight: '600px'
 	});
 
 	const messagesContainerStyles = css({
@@ -484,6 +485,7 @@
 	function drawNewCards() {
 		drawCards();
 		showDrawnCards = true;
+		isSelectingCards = true;
 		// Only reset if we haven't started a conversation yet
 		if (selectedCards.length === 0) {
 			selectedCard = null;
@@ -519,11 +521,13 @@
 					}
 				];
 				showDrawnCards = false;
+				isSelectingCards = false;
 			} else if (isNewCard) {
 				// If selecting a new card from the "Draw New Cards" section, switch to it and get LLM response
 				selectedCard = card;
 				selectedPrompt = getRandomPrompt(card.perspective_prompts);
 				showDrawnCards = false;
+				isSelectingCards = false;
 				// Automatically get LLM response for the new card
 				getNewCardResponse(card);
 			}
@@ -751,11 +755,13 @@
 				{/each}
 			</div>
 		{:else if !selectedCard}
-			<div class={css({ marginBottom: '1.5rem' })}>
-				<div class={css({ fontSize: 'sm', color: 'text.secondary', marginBottom: '1rem' })}>
-					Select a card to begin. You can add more cards while chatting.
+			{#if !isSelectingCards}
+				<div class={css({ marginBottom: '1.5rem' })}>
+					<div class={css({ fontSize: 'sm', color: 'text.secondary', marginBottom: '1rem' })}>
+						Select a card to begin. You can add more cards while chatting.
+					</div>
 				</div>
-			</div>
+			{/if}
 
 			<div class={cardsContainerStyles}>
 				{#each drawnCards as card (card.id)}
@@ -786,12 +792,14 @@
 				{/each}
 			</div>
 
-			<div class={css({ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', marginTop: '2rem', flexWrap: 'wrap' })}>
-				<Button onclick={drawNewCards} variant="secondary">
-					Redraw Cards
-				</Button>
-			</div>
-		{:else if !bugDiscovered}
+			{#if !isSelectingCards}
+				<div class={css({ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', marginTop: '2rem', flexWrap: 'wrap' })}>
+					<Button onclick={drawNewCards} variant="secondary">
+						Redraw Cards
+					</Button>
+				</div>
+			{/if}
+		{:else if !bugDiscovered && !isSelectingCards}
 			<div class={twoColumnLayoutStyles}>
 				<!-- Left Column: Selected Cards -->
 				<div class={leftColumnStyles}>
@@ -934,6 +942,48 @@
 						</div>
 					</div>
 				</div>
+			</div>
+		{:else if isSelectingCards}
+			<!-- Card Selection Mode: Show only drawn cards -->
+			<div class={css({ marginBottom: '1.5rem' })}>
+				<div class={css({ fontSize: 'sm', color: 'text.secondary', marginBottom: '1rem', textAlign: 'center' })}>
+					Select a card to explore
+				</div>
+			</div>
+
+			<div class={cardsContainerStyles}>
+				{#each drawnCards as card (card.id)}
+					{@const cardId = String(card.id)}
+					{@const commentary = cardCommentaries[cardId]}
+					{@const isLoading = loadingCommentaries[cardId]}
+					{@const isCardSelected = selectedCards.some(c => c.id === card.id)}
+					<button
+						class={`${cardStyles} ${isCardSelected ? cardSelectedStyles : ''}`}
+						onclick={() => toggleCardSelection(card)}
+						disabled={!isCardSelected && selectedCards.length >= MAX_SELECTED_CARDS}
+						style={!isCardSelected && selectedCards.length >= MAX_SELECTED_CARDS ? 'opacity: 0.5; cursor: not-allowed;' : ''}
+					>
+						<div class={cardEmojiStyles}>{card.emoji}</div>
+						<div class={cardNameStyles}>{card.name}</div>
+						<div class={cardQuestionStyles}>{card.card_question}</div>
+						<div class={cardMeaningStyles}>{card.core_meaning}</div>
+						{#if isLoading}
+							<div style="margin-top: 1rem;">
+								<Loader size={16} />
+							</div>
+						{:else if commentary}
+							<div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--colors-border-liminal); font-size: 0.875rem; color: var(--colors-text-accent); line-height: 1.5;">
+								{commentary}
+							</div>
+						{/if}
+					</button>
+				{/each}
+			</div>
+
+			<div style="margin-top: 1rem; text-align: center;">
+				<Button onclick={drawNewCards} variant="secondary">
+					Redraw Cards
+				</Button>
 			</div>
 		{:else}
 			<div class={bugSummaryStyles}>
