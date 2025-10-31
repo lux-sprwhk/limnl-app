@@ -213,10 +213,6 @@
 				<Sparkles size={32} />
 				Card Deck
 			</h1>
-			<Button variant="primary" onclick={() => (window.location.href = '/cards/draw')}>
-				<Sparkles size={20} />
-				Draw Cards
-			</Button>
 		</div>
 
 		<div class={searchContainerStyles}>
@@ -262,7 +258,6 @@
 						<div class={cardEmojiStyles}>{card.emoji}</div>
 						<div>
 							<h2 class={cardNameStyles}>{card.name}</h2>
-							<div class={cardTraditionalStyles}>({card.traditional_equivalent})</div>
 						</div>
 						<p class={cardMeaningStyles}>{card.core_meaning}</p>
 						<div class={tagsContainerStyles}>
