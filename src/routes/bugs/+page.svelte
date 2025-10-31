@@ -2,12 +2,17 @@
 	import { css } from '../../../styled-system/css';
 	import { onMount } from 'svelte';
 	import type { Bug } from '$lib/types/bug';
+	import type { CardWithCount } from '$lib/types/card';
 	import { bugsApi } from '$lib/api/bugs';
+	import { cardsApi } from '$lib/api/cards';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { Sparkles, Plus, CheckCircle, Archive, Trash2 } from 'lucide-svelte';
+	import cardsData from '../../cards.json';
 
 	let bugs = $state<Bug[]>([]);
+	let cards = $state<CardWithCount[]>([]);
 	let isLoading = $state(true);
+	let isLoadingCards = $state(true);
 	let filter = $state<'all' | 'active' | 'resolved' | 'archived'>('active');
 
 	// Styles
@@ -138,8 +143,80 @@
 		color: 'text.muted'
 	});
 
+	const cardsSectionStyles = css({
+		marginBottom: '3rem'
+	});
+
+	const sectionTitleStyles = css({
+		fontSize: '1.5rem',
+		fontWeight: '600',
+		color: 'text.primary',
+		marginBottom: '1rem',
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.5rem'
+	});
+
+	const cardsGridStyles = css({
+		display: 'grid',
+		gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+		gap: '1rem'
+	});
+
+	const cardItemStyles = css({
+		backgroundColor: 'liminal.surface',
+		backdropFilter: 'blur(4px)',
+		borderRadius: 'lg',
+		padding: '1rem',
+		boxShadow: 'void',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		cursor: 'pointer',
+		transition: 'all 0.2s',
+		'&:hover': {
+			borderColor: 'border.hover',
+			boxShadow: 'glow',
+			transform: 'translateY(-2px)'
+		}
+	});
+
+	const cardEmojiStyles = css({
+		fontSize: '2.5rem',
+		textAlign: 'center',
+		marginBottom: '0.5rem'
+	});
+
+	const cardNameStyles = css({
+		fontSize: '0.9rem',
+		fontWeight: '600',
+		color: 'text.primary',
+		textAlign: 'center',
+		marginBottom: '0.5rem'
+	});
+
+	const cardCountBadgeStyles = css({
+		textAlign: 'center',
+		padding: '0.25rem 0.5rem',
+		backgroundColor: 'void.800',
+		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.liminal'
+	});
+
+	const cardCountNumberStyles = css({
+		fontSize: '1.25rem',
+		fontWeight: '700',
+		color: 'text.accent'
+	});
+
+	const cardCountLabelStyles = css({
+		fontSize: '0.75rem',
+		color: 'text.muted',
+		marginLeft: '0.25rem'
+	});
+
 	onMount(async () => {
-		await loadBugs();
+		await Promise.all([loadBugs(), loadCards()]);
 	});
 
 	async function loadBugs() {
@@ -152,6 +229,22 @@
 		} finally {
 			isLoading = false;
 		}
+	}
+
+	async function loadCards() {
+		isLoadingCards = true;
+		try {
+			cards = await cardsApi.listByUsage();
+		} catch (error) {
+			console.error('Failed to load cards:', error);
+		} finally {
+			isLoadingCards = false;
+		}
+	}
+
+	// Get card details from JSON by name
+	function getCardDetails(cardName: string) {
+		return cardsData.cards.find(c => c.name === cardName);
 	}
 
 	async function updateBugStatus(bugId: number, status: 'active' | 'resolved' | 'archived') {
@@ -223,6 +316,40 @@
 				</Button>
 			</div>
 		</div>
+
+		<!-- Cards Section -->
+		<div class={cardsSectionStyles}>
+			<h2 class={sectionTitleStyles}>
+				<Sparkles size={24} />
+				Cards by Usage
+			</h2>
+			{#if isLoadingCards}
+				<div class={emptyStateStyles}>Loading cards...</div>
+			{:else if cards.length === 0}
+				<div class={emptyStateStyles}>No cards found</div>
+			{:else}
+				<div class={cardsGridStyles}>
+					{#each cards as card (card.id)}
+						{@const cardDetails = getCardDetails(card.name)}
+						<div class={cardItemStyles}>
+							{#if cardDetails}
+								<div class={cardEmojiStyles}>{cardDetails.emoji}</div>
+							{/if}
+							<div class={cardNameStyles}>{card.name}</div>
+							<div class={cardCountBadgeStyles}>
+								<span class={cardCountNumberStyles}>{card.bug_count}</span>
+								<span class={cardCountLabelStyles}>bug{card.bug_count !== 1 ? 's' : ''}</span>
+							</div>
+						</div>
+					{/each}
+				</div>
+			{/if}
+		</div>
+
+		<!-- Bugs List -->
+		<h2 class={sectionTitleStyles}>
+			Your Bugs
+		</h2>
 
 		<div class={filterStyles}>
 			<button

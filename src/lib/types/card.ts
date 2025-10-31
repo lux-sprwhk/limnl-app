@@ -53,3 +53,32 @@ export interface CreateCardReadingInput {
 	reversed: boolean[]; // Whether each card is reversed
 	notes?: string;
 }
+
+/**
+ * Database card entity (minimal info stored in DB)
+ */
+export interface DbCard {
+	id: number;
+	name: string;
+	created_at: string;
+}
+
+/**
+ * Card with usage statistics (how many bugs it appears in)
+ */
+export interface CardWithCount {
+	id: number;
+	name: string;
+	bug_count: number;
+	created_at: string;
+}
+
+/**
+ * Link between a bug and a card
+ */
+export interface BugCard {
+	bug_id: number;
+	card_id: number;
+	position: number | null;
+	created_at: string;
+}

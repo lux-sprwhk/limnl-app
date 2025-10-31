@@ -2,6 +2,7 @@ use rusqlite::{Connection, Result as SqlResult};
 use std::path::PathBuf;
 use std::sync::Mutex;
 use directories::ProjectDirs;
+use serde::Deserialize;
 
 pub struct Database {
     conn: Mutex<Connection>,
@@ -105,6 +106,84 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_mind_dumps_created_at ON mind_dumps(created_at)",
             [],
         )?;
+
+        // Create cards table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS cards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            )",
+            [],
+        )?;
+
+        // Create bug_cards junction table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS bug_cards (
+                bug_id INTEGER NOT NULL,
+                card_id INTEGER NOT NULL,
+                position INTEGER,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (bug_id, card_id),
+                FOREIGN KEY (bug_id) REFERENCES bugs(id) ON DELETE CASCADE,
+                FOREIGN KEY (card_id) REFERENCES cards(id)
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bug_cards_card_id ON bug_cards(card_id)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_bug_cards_bug_id ON bug_cards(bug_id)",
+            [],
+        )?;
+
+        // Release the connection lock before seeding
+        drop(conn);
+
+        // Seed cards if not already seeded
+        self.seed_cards_from_json()?;
+
+        Ok(())
+    }
+
+    fn seed_cards_from_json(&self) -> SqlResult<()> {
+        use super::models::CreateCardInput;
+
+        // Check if cards already exist
+        let conn = self.conn.lock().unwrap();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM cards", [], |row| row.get(0))?;
+        drop(conn);
+
+        if count > 0 {
+            // Cards already seeded
+            return Ok(());
+        }
+
+        // Load cards from JSON file
+        #[derive(Deserialize)]
+        struct CardData {
+            name: String,
+        }
+
+        #[derive(Deserialize)]
+        struct CardsJson {
+            cards: Vec<CardData>,
+        }
+
+        let cards_json = include_str!("../../cards.json");
+        let cards_data: CardsJson = serde_json::from_str(cards_json)
+            .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+        // Seed each card
+        for card_data in cards_data.cards {
+            self.create_card_internal(CreateCardInput {
+                name: card_data.name,
+            })?;
+        }
 
         Ok(())
     }

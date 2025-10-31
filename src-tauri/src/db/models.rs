@@ -91,3 +91,32 @@ pub struct UpdateMindDumpInput {
     pub content: Option<String>,
     pub word_count: Option<i32>,
 }
+
+// Card models
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Card {
+    pub id: Option<i64>,
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateCardInput {
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BugCard {
+    pub bug_id: i64,
+    pub card_id: i64,
+    pub position: Option<i32>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CardWithCount {
+    pub id: i64,
+    pub name: String,
+    pub bug_count: i32,
+    pub created_at: DateTime<Utc>,
+}

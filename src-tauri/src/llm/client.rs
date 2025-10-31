@@ -190,6 +190,7 @@ pub async fn optimize_description(content: &str, config: &LLMConfig) -> Result<S
     }
 }
 
+#[allow(dead_code)]
 pub async fn comment_on_card(
     card_name: &str,
     card_question: &str,
@@ -205,6 +206,7 @@ pub async fn comment_on_card(
     }
 }
 
+#[allow(dead_code)]
 pub async fn comment_on_multiple_cards(
     cards: &[Value],
     life_area: &str,
@@ -518,6 +520,7 @@ async fn optimize_description_anthropic(content: &str, config: &LLMConfig) -> Re
         .ok_or_else(|| "Invalid Anthropic response format".to_string())
 }
 
+#[allow(dead_code)]
 async fn comment_on_card_ollama(
     card_name: &str,
     card_question: &str,
@@ -561,6 +564,7 @@ async fn comment_on_card_ollama(
         .ok_or_else(|| "Invalid Ollama response format".to_string())
 }
 
+#[allow(dead_code)]
 async fn comment_on_card_openai(
     card_name: &str,
     card_question: &str,
@@ -616,6 +620,7 @@ async fn comment_on_card_openai(
         .ok_or_else(|| "Invalid OpenAI response format".to_string())
 }
 
+#[allow(dead_code)]
 async fn comment_on_card_anthropic(
     card_name: &str,
     card_question: &str,

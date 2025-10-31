@@ -2,15 +2,23 @@
 	import { css } from '../../../styled-system/css';
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 	import { userProfile } from '$lib/stores/user-profile.svelte';
+	import { authStore } from '$lib/stores/auth.svelte';
 	import type { LLMProvider } from '$lib/types/llm';
 	import { ZODIAC_SIGNS, MBTI_TYPES } from '$lib/types/user';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Select from '$lib/components/ui/Select.svelte';
-	import { Save } from 'lucide-svelte';
+	import { Save, Lock, Unlock } from 'lucide-svelte';
 
 	let config = $state({ ...llmSettings.config });
 	let profile = $state({ ...userProfile.profile });
 	let saved = $state(false);
+	let pinEnabled = $state(authStore.authState.requirePin);
+	let showPinSection = $state(false);
+	let currentPin = $state('');
+	let newPin = $state('');
+	let confirmPin = $state('');
+	let pinError = $state('');
+	let pinSuccess = $state('');
 
 	function handleSave() {
 		llmSettings.updateConfig(config);
@@ -24,6 +32,81 @@
 		userProfile.resetProfile();
 		config = { ...llmSettings.config };
 		profile = { ...userProfile.profile };
+	}
+
+	async function handleTogglePin() {
+		pinError = '';
+		pinSuccess = '';
+
+		const newState = !pinEnabled;
+
+		if (!newState && authStore.authState.hasPin) {
+			// Disabling PIN - need to verify current PIN
+			if (!currentPin) {
+				pinError = 'Please enter your current PIN to disable';
+				return;
+			}
+
+			const success = await authStore.togglePinRequirement(false, currentPin);
+			if (!success) {
+				pinError = 'Incorrect PIN';
+				return;
+			}
+
+			pinSuccess = 'PIN authentication disabled';
+			pinEnabled = false;
+			currentPin = '';
+		} else {
+			// Enabling PIN
+			const success = await authStore.togglePinRequirement(true);
+			if (success) {
+				pinEnabled = true;
+				pinSuccess = 'PIN authentication enabled. You can set up your PIN on the home page.';
+			} else {
+				pinError = 'Failed to enable PIN authentication';
+			}
+		}
+
+		setTimeout(() => {
+			pinError = '';
+			pinSuccess = '';
+		}, 3000);
+	}
+
+	async function handleChangePin() {
+		pinError = '';
+		pinSuccess = '';
+
+		if (!currentPin || !newPin || !confirmPin) {
+			pinError = 'Please fill in all PIN fields';
+			return;
+		}
+
+		if (newPin !== confirmPin) {
+			pinError = 'New PINs do not match';
+			return;
+		}
+
+		if (newPin.length < 4) {
+			pinError = 'PIN must be at least 4 characters';
+			return;
+		}
+
+		const success = await authStore.changePin(currentPin, newPin);
+		if (success) {
+			pinSuccess = 'PIN changed successfully';
+			currentPin = '';
+			newPin = '';
+			confirmPin = '';
+			showPinSection = false;
+		} else {
+			pinError = 'Incorrect current PIN';
+		}
+
+		setTimeout(() => {
+			pinError = '';
+			pinSuccess = '';
+		}, 3000);
 	}
 
 	const containerStyles = css({
@@ -188,6 +271,157 @@
 				/>
 				<p class={helpTextStyles}>Your MBTI personality type for personalized dream analysis</p>
 			</div>
+		</div>
+
+		<div class={sectionStyles}>
+			<h2 class={sectionTitleStyles}>Security</h2>
+
+			{#if pinError}
+				<div class={css({
+					padding: '1rem',
+					backgroundColor: 'void.800',
+					color: 'error.300',
+					borderRadius: 'md',
+					border: '1px solid',
+					borderColor: 'error.600',
+					marginBottom: '1rem',
+					fontSize: 'sm'
+				})}>
+					{pinError}
+				</div>
+			{/if}
+
+			{#if pinSuccess}
+				<div class={successStyles}>
+					{pinSuccess}
+				</div>
+			{/if}
+
+			<div class={formGroupStyles}>
+				<div class={css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' })}>
+					<label for="pin-enabled" class={labelStyles} style="margin-bottom: 0;">
+						{#if pinEnabled}
+							<Lock size={16} style="display: inline; vertical-align: text-bottom;" />
+						{:else}
+							<Unlock size={16} style="display: inline; vertical-align: text-bottom;" />
+						{/if}
+						Require PIN on Launch
+					</label>
+					<button
+						type="button"
+						role="switch"
+						aria-checked={pinEnabled}
+						aria-label="Toggle PIN requirement"
+						class={css({
+							width: '3rem',
+							height: '1.75rem',
+							borderRadius: 'full',
+							backgroundColor: pinEnabled ? 'breakthrough.600' : 'void.700',
+							border: '2px solid',
+							borderColor: pinEnabled ? 'breakthrough.500' : 'border.liminal',
+							position: 'relative',
+							cursor: 'pointer',
+							transition: 'all 0.2s',
+							'&:hover': {
+								backgroundColor: pinEnabled ? 'breakthrough.500' : 'void.600'
+							}
+						})}
+						onclick={handleTogglePin}
+					>
+						<span
+							class={css({
+								position: 'absolute',
+								width: '1.25rem',
+								height: '1.25rem',
+								borderRadius: 'full',
+								backgroundColor: 'white',
+								top: '0.125rem',
+								left: pinEnabled ? 'calc(100% - 1.375rem)' : '0.125rem',
+								transition: 'left 0.2s'
+							})}
+						></span>
+					</button>
+				</div>
+				<p class={helpTextStyles}>
+					When enabled, you'll need to enter a PIN to access your journal. You can bypass this by toggling it off.
+				</p>
+			</div>
+
+			{#if pinEnabled && authStore.authState.hasPin}
+				<div class={formGroupStyles}>
+					<Button
+						variant="outline"
+						type="button"
+						onclick={() => showPinSection = !showPinSection}
+					>
+						{showPinSection ? 'Cancel' : 'Change PIN'}
+					</Button>
+				</div>
+
+				{#if showPinSection}
+					<div class={css({
+						padding: '1.5rem',
+						backgroundColor: 'void.800',
+						borderRadius: 'md',
+						border: '1px solid',
+						borderColor: 'border.liminal',
+						marginTop: '1rem'
+					})}>
+						<div class={formGroupStyles}>
+							<label for="current-pin" class={labelStyles}>Current PIN</label>
+							<input
+								type="password"
+								id="current-pin"
+								class={inputStyles}
+								bind:value={currentPin}
+								placeholder="Enter current PIN"
+							/>
+						</div>
+
+						<div class={formGroupStyles}>
+							<label for="new-pin" class={labelStyles}>New PIN</label>
+							<input
+								type="password"
+								id="new-pin"
+								class={inputStyles}
+								bind:value={newPin}
+								placeholder="Enter new PIN (min 4 characters)"
+							/>
+						</div>
+
+						<div class={formGroupStyles}>
+							<label for="confirm-pin" class={labelStyles}>Confirm New PIN</label>
+							<input
+								type="password"
+								id="confirm-pin"
+								class={inputStyles}
+								bind:value={confirmPin}
+								placeholder="Re-enter new PIN"
+							/>
+						</div>
+
+						<Button variant="primary" type="button" onclick={handleChangePin}>
+							Update PIN
+						</Button>
+					</div>
+				{/if}
+			{/if}
+
+			{#if !pinEnabled && authStore.authState.hasPin}
+				<div class={formGroupStyles}>
+					<label for="disable-pin" class={labelStyles}>Enter PIN to Disable</label>
+					<input
+						type="password"
+						id="disable-pin"
+						class={inputStyles}
+						bind:value={currentPin}
+						placeholder="Enter your PIN"
+					/>
+					<p class={helpTextStyles}>
+						Enter your current PIN to confirm disabling PIN authentication
+					</p>
+				</div>
+			{/if}
 		</div>
 
 		<div class={sectionStyles}>

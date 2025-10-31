@@ -302,3 +302,79 @@ pub fn search_mind_dumps(
 ) -> Result<Vec<MindDump>, String> {
     db.search_mind_dumps(&query).map_err(|e| e.to_string())
 }
+
+// Card commands (read-only - cards are a fixed deck like tarot)
+#[tauri::command]
+pub fn get_card(
+    db: State<Database>,
+    id: i64,
+) -> Result<Option<Card>, String> {
+    db.get_card(id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_card_by_name(
+    db: State<Database>,
+    name: String,
+) -> Result<Option<Card>, String> {
+    db.get_card_by_name(&name).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn list_cards(
+    db: State<Database>,
+) -> Result<Vec<Card>, String> {
+    db.list_cards().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn list_cards_by_usage(
+    db: State<Database>,
+) -> Result<Vec<CardWithCount>, String> {
+    db.list_cards_by_usage().map_err(|e| e.to_string())
+}
+
+// Bug-Card relationship commands
+#[tauri::command]
+pub fn create_bug_with_cards(
+    db: State<Database>,
+    input: CreateBugInput,
+    card_names: Vec<String>,
+) -> Result<Bug, String> {
+    db.create_bug_with_cards(input, card_names).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn link_card_to_bug(
+    db: State<Database>,
+    bug_id: i64,
+    card_id: i64,
+    position: Option<i32>,
+) -> Result<BugCard, String> {
+    db.link_card_to_bug(bug_id, card_id, position).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_bug_cards(
+    db: State<Database>,
+    bug_id: i64,
+) -> Result<Vec<Card>, String> {
+    db.get_bug_cards(bug_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn unlink_card_from_bug(
+    db: State<Database>,
+    bug_id: i64,
+    card_id: i64,
+) -> Result<bool, String> {
+    db.unlink_card_from_bug(bug_id, card_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn clear_bug_cards(
+    db: State<Database>,
+    bug_id: i64,
+) -> Result<(), String> {
+    db.clear_bug_cards(bug_id).map_err(|e| e.to_string())
+}

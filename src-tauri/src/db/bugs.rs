@@ -8,6 +8,7 @@ impl Database {
         let conn = self.get_connection();
         let now = Utc::now();
 
+        // Note: cards_drawn is kept for backward compatibility but should use bug_cards table instead
         conn.execute(
             "INSERT INTO bugs (title, description, status, cards_drawn, conversation_history, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
@@ -35,6 +36,31 @@ impl Database {
             updated_at: now,
             resolved_at: None,
         })
+    }
+
+    /// Create a bug with cards using the new card tables
+    /// This is the preferred method for creating bugs with cards
+    /// Card names must exist in the deck - will return error if not found
+    pub fn create_bug_with_cards(
+        &self,
+        input: CreateBugInput,
+        card_names: Vec<String>,
+    ) -> SqlResult<Bug> {
+        // Create the bug first
+        let bug = self.create_bug(input)?;
+        let bug_id = bug.id.unwrap();
+
+        // Look up cards by name and link them to the bug
+        for (position, card_name) in card_names.iter().enumerate() {
+            // Get card by name - it must already exist in the deck
+            let card = self.get_card_by_name(card_name)?
+                .ok_or_else(|| rusqlite::Error::InvalidQuery)?;
+            let card_id = card.id.unwrap();
+
+            self.link_card_to_bug(bug_id, card_id, Some((position + 1) as i32))?;
+        }
+
+        Ok(bug)
     }
 
     pub fn get_bug(&self, id: i64) -> SqlResult<Option<Bug>> {

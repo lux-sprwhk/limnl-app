@@ -41,6 +41,15 @@ pub fn run() {
             commands::update_mind_dump,
             commands::delete_mind_dump,
             commands::search_mind_dumps,
+            commands::get_card,
+            commands::get_card_by_name,
+            commands::list_cards,
+            commands::list_cards_by_usage,
+            commands::create_bug_with_cards,
+            commands::link_card_to_bug,
+            commands::get_bug_cards,
+            commands::unlink_card_from_bug,
+            commands::clear_bug_cards,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
