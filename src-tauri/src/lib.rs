@@ -50,6 +50,7 @@ pub fn run() {
             commands::get_bug_cards,
             commands::unlink_card_from_bug,
             commands::clear_bug_cards,
+            commands::get_card_bugs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
