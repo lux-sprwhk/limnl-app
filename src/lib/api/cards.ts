@@ -74,5 +74,12 @@ export const cardsApi = {
 	 */
 	async clearBugCards(bugId: number): Promise<void> {
 		await invoke<void>('clear_bug_cards', { bugId });
+	},
+
+	/**
+	 * Get all bugs associated with a card
+	 */
+	async getCardBugs(cardId: number): Promise<Bug[]> {
+		return await invoke<Bug[]>('get_card_bugs', { cardId });
 	}
 };

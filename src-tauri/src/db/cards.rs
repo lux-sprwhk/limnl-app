@@ -1,4 +1,4 @@
-use super::models::{BugCard, Card, CardWithCount, CreateCardInput};
+use super::models::{BugCard, Bug, Card, CardWithCount, CreateCardInput};
 use super::Database;
 use chrono::Utc;
 use rusqlite::{params, Result as SqlResult};
@@ -197,6 +197,37 @@ impl Database {
         )?;
 
         Ok(())
+    }
+
+    /// Get all bugs for a specific card
+    pub fn get_card_bugs(&self, card_id: i64) -> SqlResult<Vec<Bug>> {
+        let conn = self.get_connection();
+
+        let mut stmt = conn.prepare(
+            "SELECT b.id, b.title, b.description, b.status, b.cards_drawn, b.conversation_history, b.created_at, b.updated_at, b.resolved_at
+             FROM bugs b
+             INNER JOIN bug_cards bc ON b.id = bc.bug_id
+             WHERE bc.card_id = ?1
+             ORDER BY b.created_at DESC"
+        )?;
+
+        let bugs = stmt
+            .query_map(params![card_id], |row| {
+                Ok(Bug {
+                    id: Some(row.get(0)?),
+                    title: row.get(1)?,
+                    description: row.get(2)?,
+                    status: row.get(3)?,
+                    cards_drawn: row.get(4)?,
+                    conversation_history: row.get(5)?,
+                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
+                    updated_at: row.get::<_, String>(7)?.parse().unwrap(),
+                    resolved_at: row.get::<_, Option<String>>(8)?.map(|s| s.parse().unwrap()),
+                })
+            })?
+            .collect::<SqlResult<Vec<Bug>>>()?;
+
+        Ok(bugs)
     }
 
     // Note: No delete_card function - cards are permanent like a tarot deck

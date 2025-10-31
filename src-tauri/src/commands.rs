@@ -378,3 +378,11 @@ pub fn clear_bug_cards(
 ) -> Result<(), String> {
     db.clear_bug_cards(bug_id).map_err(|e| e.to_string())
 }
+
+#[tauri::command]
+pub fn get_card_bugs(
+    db: State<Database>,
+    card_id: i64,
+) -> Result<Vec<Bug>, String> {
+    db.get_card_bugs(card_id).map_err(|e| e.to_string())
+}

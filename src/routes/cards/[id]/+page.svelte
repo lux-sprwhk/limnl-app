@@ -2,12 +2,16 @@
 	import { page } from '$app/stores';
 	import { css } from '../../../../styled-system/css';
 	import type { Card } from '$lib/types/card';
+	import type { Bug } from '$lib/types/bug';
+	import { cardsApi } from '$lib/api/cards';
 	import Button from '$lib/components/ui/Button.svelte';
 	import { ArrowLeft, Sparkles } from 'lucide-svelte';
 	import cardsData from '../../../cards.json';
 
 	let card = $state<Card | null>(null);
+	let bugs = $state<Bug[]>([]);
 	let loading = $state(true);
+	let bugsLoading = $state(false);
 	let notFound = $state(false);
 
 	$effect(() => {
@@ -16,7 +20,7 @@
 		}
 	});
 
-	function loadCard(idParam: string) {
+	async function loadCard(idParam: string) {
 		try {
 			loading = true;
 			notFound = false;
@@ -34,6 +38,16 @@
 						(foundCard as any).wisdom ||
 						''
 				};
+				// Load bugs for this card
+				bugsLoading = true;
+				try {
+					bugs = await cardsApi.getCardBugs(cardId);
+				} catch (error) {
+					console.error('Failed to load bugs for card:', error);
+					bugs = [];
+				} finally {
+					bugsLoading = false;
+				}
 			} else {
 				notFound = true;
 				card = null;
@@ -135,61 +149,6 @@
 		gap: '0.5rem'
 	});
 
-	const questionStyles = css({
-		fontSize: 'md',
-		color: 'text.secondary',
-		fontStyle: 'italic',
-		padding: '1rem',
-		backgroundColor: 'void.900',
-		borderRadius: 'md',
-		borderLeft: '3px solid',
-		borderColor: 'border.active'
-	});
-
-	const promptsListStyles = css({
-		display: 'flex',
-		flexDirection: 'column',
-		gap: '1rem'
-	});
-
-	const promptItemStyles = css({
-		padding: '1rem',
-		backgroundColor: 'void.900',
-		borderRadius: 'md',
-		borderLeft: '2px solid',
-		borderColor: 'border.liminal',
-		fontSize: 'sm',
-		color: 'text.secondary',
-		lineHeight: '1.6'
-	});
-
-	const lifeAreaGridStyles = css({
-		display: 'grid',
-		gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-		gap: '1rem'
-	});
-
-	const lifeAreaCardStyles = css({
-		padding: '1rem',
-		backgroundColor: 'void.900',
-		borderRadius: 'md',
-		border: '1px solid',
-		borderColor: 'border.liminal'
-	});
-
-	const lifeAreaLabelStyles = css({
-		fontSize: 'sm',
-		fontWeight: 'semibold',
-		color: 'text.primary',
-		marginBottom: '0.5rem',
-		textTransform: 'capitalize'
-	});
-
-	const lifeAreaTextStyles = css({
-		fontSize: 'sm',
-		color: 'text.secondary',
-		lineHeight: '1.5'
-	});
 
 	const tagsContainerStyles = css({
 		display: 'flex',
@@ -207,26 +166,6 @@
 		borderColor: 'border.liminal'
 	});
 
-	const fortuneCookieStyles = css({
-		fontSize: 'md',
-		color: 'text.secondary',
-		lineHeight: '1.7',
-		fontStyle: 'italic',
-		padding: '1.5rem',
-		backgroundColor: 'void.900',
-		borderRadius: 'md',
-		borderLeft: '3px solid',
-		borderColor: 'border.active'
-	});
-
-	const reversedMeaningStyles = css({
-		fontSize: 'md',
-		color: 'text.secondary',
-		lineHeight: '1.6',
-		padding: '1rem',
-		backgroundColor: 'void.900',
-		borderRadius: 'md'
-	});
 
 	const notFoundStyles = css({
 		textAlign: 'center',
@@ -243,6 +182,55 @@
 		textAlign: 'center',
 		padding: '4rem 2rem',
 		color: 'text.secondary'
+	});
+
+	const bugsListStyles = css({
+		display: 'flex',
+		flexDirection: 'column',
+		gap: '1rem'
+	});
+
+	const bugItemStyles = css({
+		padding: '1rem',
+		backgroundColor: 'void.900',
+		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		cursor: 'pointer',
+		transition: 'all 0.2s',
+		'&:hover': {
+			borderColor: 'border.hover',
+			backgroundColor: 'void.800'
+		}
+	});
+
+	const bugTitleStyles = css({
+		fontSize: 'md',
+		fontWeight: 'semibold',
+		color: 'text.primary',
+		marginBottom: '0.5rem'
+	});
+
+	const bugDescriptionStyles = css({
+		fontSize: 'sm',
+		color: 'text.secondary',
+		marginBottom: '0.5rem',
+		lineHeight: '1.5'
+	});
+
+	const bugStatusStyles = css({
+		fontSize: 'xs',
+		fontWeight: 'medium',
+		padding: '0.25rem 0.5rem',
+		borderRadius: 'md',
+		display: 'inline-block'
+	});
+
+	const emptyBugsStyles = css({
+		textAlign: 'center',
+		padding: '2rem',
+		color: 'text.muted',
+		fontSize: 'sm'
 	});
 </script>
 
@@ -279,70 +267,6 @@
 				<p class={coreMeaningStyles}>{card.core_meaning}</p>
 			</div>
 
-			<!-- Card Question -->
-			<div class={sectionStyles}>
-				<div class={sectionTitleStyles}>
-					<Sparkles size={20} />
-					The Question
-				</div>
-				<div class={questionStyles}>
-					{card.card_question}
-				</div>
-			</div>
-
-			<!-- Perspective Prompts -->
-			<div class={sectionStyles}>
-				<div class={sectionTitleStyles}>
-					<Sparkles size={20} />
-					Perspective Prompts
-				</div>
-				<div class={promptsListStyles}>
-					{#each card.perspective_prompts as prompt}
-						<div class={promptItemStyles}>
-							{prompt}
-						</div>
-					{/each}
-				</div>
-			</div>
-
-			<!-- Life Area Insights -->
-			<div class={sectionStyles}>
-				<div class={sectionTitleStyles}>
-					<Sparkles size={20} />
-					Life Area Insights
-				</div>
-				<div class={lifeAreaGridStyles}>
-					{#each Object.entries(card.life_area_insights) as [area, insight]}
-						<div class={lifeAreaCardStyles}>
-							<div class={lifeAreaLabelStyles}>{area}</div>
-							<div class={lifeAreaTextStyles}>{insight}</div>
-						</div>
-					{/each}
-				</div>
-			</div>
-
-			<!-- Fortune Cookie -->
-			<div class={sectionStyles}>
-				<div class={sectionTitleStyles}>
-					<Sparkles size={20} />
-					Fortune Cookie
-				</div>
-				<div class={fortuneCookieStyles}>
-					{card.fortune_cookie}
-				</div>
-			</div>
-
-			<!-- Reversed Meaning -->
-			<div class={sectionStyles}>
-				<div class={sectionTitleStyles}>
-					<Sparkles size={20} />
-					Reversed Meaning
-				</div>
-				<div class={reversedMeaningStyles}>
-					{card.reversed_meaning}
-				</div>
-			</div>
-
 			<!-- Tags -->
 			<div class={sectionStyles}>
 				<div class={sectionTitleStyles}>
@@ -354,6 +278,31 @@
 						<span class={tagStyles}>{tag}</span>
 					{/each}
 				</div>
+			</div>
+
+			<!-- Bugs -->
+			<div class={sectionStyles}>
+				<div class={sectionTitleStyles}>
+					<Sparkles size={20} />
+					Related Bugs
+				</div>
+				{#if bugsLoading}
+					<div class={emptyBugsStyles}>Loading bugs...</div>
+				{:else if bugs.length === 0}
+					<div class={emptyBugsStyles}>No bugs related to this card yet.</div>
+				{:else}
+					<div class={bugsListStyles}>
+						{#each bugs as bug (bug.id)}
+							<a href={`/bugs/${bug.id}`} class={bugItemStyles}>
+								<div class={bugTitleStyles}>{bug.title}</div>
+								<div class={bugDescriptionStyles}>{bug.description}</div>
+								<div class={bugStatusStyles} style={`background-color: ${bug.status === 'active' ? 'rgba(59, 130, 246, 0.1)' : bug.status === 'resolved' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(107, 114, 128, 0.1)'}; color: ${bug.status === 'active' ? 'rgb(96, 165, 250)' : bug.status === 'resolved' ? 'rgb(74, 222, 128)' : 'rgb(156, 163, 175)'}`}>
+									{bug.status}
+								</div>
+							</a>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</div>
