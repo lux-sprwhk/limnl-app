@@ -1,21 +1,30 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { css } from '../../../../styled-system/css';
-	import type { Card } from '$lib/types/card';
+	import type { Card, CardWithCount } from '$lib/types/card';
+	import { cardsApi } from '$lib/api/cards';
 	import Button from '$lib/components/ui/Button.svelte';
+	import Select from '$lib/components/ui/Select.svelte';
 	import { Sparkles, Search } from 'lucide-svelte';
 	import cardsData from '../../../cards.json';
 
 	let cards = $state<Card[]>([]);
+	let cardsWithUsage = $state<CardWithCount[]>([]);
 	let filteredCards = $state<Card[]>([]);
 	let loading = $state(true);
 	let searchQuery = $state('');
+	let sortBy = $state<'usage' | 'name'>('usage');
+	let previousSortBy = $state<'usage' | 'name'>('usage');
+	const sortOptions = [
+		{ value: 'usage', label: 'Usage' },
+		{ value: 'name', label: 'Name' }
+	];
 
 	onMount(async () => {
-		loadCards();
+		await loadCards();
 	});
 
-	function loadCards() {
+	async function loadCards() {
 		try {
 			loading = true;
 			// Load and normalize card data
@@ -27,7 +36,11 @@
 				fortune_cookie:
 					card.fortune_cookie || (card as any).duck_wisdom || (card as any).wisdom || ''
 			}));
+			// Initialize filteredCards with all cards
 			filteredCards = cards;
+			// Load cards by usage
+			cardsWithUsage = await cardsApi.listByUsage();
+			applySorting();
 		} catch (error) {
 			console.error('Failed to load cards:', error);
 		} finally {
@@ -35,19 +48,46 @@
 		}
 	}
 
+	function applySorting() {
+		filteredCards = getSortedCards(filteredCards);
+	}
+
 	function handleSearch() {
 		if (!searchQuery.trim()) {
 			filteredCards = cards;
-			return;
+		} else {
+			const query = searchQuery.toLowerCase();
+			filteredCards = cards.filter(
+				(card) =>
+					card.name.toLowerCase().includes(query) ||
+					card.core_meaning.toLowerCase().includes(query) ||
+					card.tags.some((tag) => tag.toLowerCase().includes(query))
+			);
 		}
+		applySorting();
+	}
 
-		const query = searchQuery.toLowerCase();
-		filteredCards = cards.filter(
-			(card) =>
-				card.name.toLowerCase().includes(query) ||
-				card.core_meaning.toLowerCase().includes(query) ||
-				card.tags.some((tag) => tag.toLowerCase().includes(query))
-		);
+	$effect.pre(() => {
+		// Only re-sort if sortBy actually changed
+		if (sortBy !== previousSortBy && filteredCards.length > 0) {
+			previousSortBy = sortBy;
+			filteredCards = getSortedCards(filteredCards);
+		}
+	});
+
+	function getSortedCards(cardsToSort: Card[]): Card[] {
+		let sorted = [...cardsToSort];
+		if (sortBy === 'usage') {
+			const usageMap = new Map(cardsWithUsage.map(c => [c.name, c.bug_count]));
+			sorted.sort((a, b) => {
+				const countA = usageMap.get(a.name) ?? 0;
+				const countB = usageMap.get(b.name) ?? 0;
+				return countB - countA;
+			});
+		} else {
+			sorted.sort((a, b) => a.name.localeCompare(b.name));
+		}
+		return sorted;
 	}
 
 	const containerStyles = css({
@@ -204,6 +244,11 @@
 		color: 'text.muted',
 		marginBottom: '1rem'
 	});
+
+	const sortContainerStyles = css({
+		width: '200px',
+		marginBottom: '1rem'
+	});
 </script>
 
 <div class={containerStyles}>
@@ -235,6 +280,10 @@
 				Found {filteredCards.length} of {cards.length} cards
 			</div>
 		{/if}
+
+		<div class={sortContainerStyles}>
+			<Select bind:value={sortBy} options={sortOptions} />
+		</div>
 	</div>
 
 	<div class={contentStyles}>
