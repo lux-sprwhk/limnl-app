@@ -197,4 +197,14 @@ impl Database {
     pub fn get_connection(&self) -> std::sync::MutexGuard<'_, Connection> {
         self.conn.lock().unwrap()
     }
+
+    pub fn get_database_path_public() -> Result<PathBuf, Box<dyn std::error::Error>> {
+        Self::get_database_path()
+    }
+
+    pub fn backup_database(&self, destination: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+        let source = Self::get_database_path()?;
+        std::fs::copy(&source, destination)?;
+        Ok(())
+    }
 }

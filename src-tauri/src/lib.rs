@@ -10,6 +10,7 @@ use db::Database;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             // Initialize database
             let db = Database::new().expect("Failed to initialize database");
@@ -51,6 +52,8 @@ pub fn run() {
             commands::unlink_card_from_bug,
             commands::clear_bug_cards,
             commands::get_card_bugs,
+            commands::backup_database,
+            commands::get_database_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

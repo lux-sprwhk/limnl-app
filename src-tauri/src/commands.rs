@@ -4,6 +4,7 @@ use crate::llm::{
     OptimizeDescriptionResponse, CardCommentaryResponse,
 };
 use tauri::State;
+use std::path::PathBuf;
 
 #[tauri::command]
 pub fn create_dream(
@@ -385,4 +386,21 @@ pub fn get_card_bugs(
     card_id: i64,
 ) -> Result<Vec<Bug>, String> {
     db.get_card_bugs(card_id).map_err(|e| e.to_string())
+}
+
+// Database backup command
+#[tauri::command]
+pub fn backup_database(
+    db: State<Database>,
+    destination: String,
+) -> Result<(), String> {
+    let dest_path = PathBuf::from(destination);
+    db.backup_database(&dest_path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_database_path() -> Result<String, String> {
+    Database::get_database_path_public()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| e.to_string())
 }

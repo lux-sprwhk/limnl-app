@@ -7,8 +7,9 @@
 	import { ZODIAC_SIGNS, MBTI_TYPES } from '$lib/types/user';
 	import Button from '$lib/components/ui/Button.svelte';
 	import Select from '$lib/components/ui/Select.svelte';
-	import { Save, Lock, Unlock, User, Bot } from 'lucide-svelte';
+	import { Save, Lock, Unlock, User, Bot, Database } from 'lucide-svelte';
 	import { Tabs } from 'bits-ui';
+	import { databaseApi } from '$lib/api/database';
 
 	let config = $state({ ...llmSettings.config });
 	let profile = $state({ ...userProfile.profile });
@@ -20,6 +21,9 @@
 	let confirmPin = $state('');
 	let pinError = $state('');
 	let pinSuccess = $state('');
+	let backupInProgress = $state(false);
+	let backupSuccess = $state('');
+	let backupError = $state('');
 
 	// Dynamic styles for toggle button
 	const getToggleButtonStyles = (enabled: boolean) => css({
@@ -135,6 +139,29 @@
 			pinError = '';
 			pinSuccess = '';
 		}, 3000);
+	}
+
+	async function handleBackupDatabase() {
+		backupInProgress = true;
+		backupError = '';
+		backupSuccess = '';
+
+		try {
+			const success = await databaseApi.backupDatabaseWithDialog();
+			if (success) {
+				backupSuccess = 'Database backed up successfully!';
+				setTimeout(() => {
+					backupSuccess = '';
+				}, 3000);
+			}
+		} catch (error) {
+			backupError = `Failed to backup database: ${error}`;
+			setTimeout(() => {
+				backupError = '';
+			}, 5000);
+		} finally {
+			backupInProgress = false;
+		}
 	}
 
 	const containerStyles = css({
@@ -358,6 +385,10 @@
 				<Tabs.Trigger value="llm" class={tabTriggerStyles}>
 					<Bot size={18} />
 					LLM Config
+				</Tabs.Trigger>
+				<Tabs.Trigger value="data" class={tabTriggerStyles}>
+					<Database size={18} />
+					Data & Export
 				</Tabs.Trigger>
 			</Tabs.List>
 
@@ -658,6 +689,43 @@
 						<Save size={20} />
 						Save Settings
 					</Button>
+				</div>
+			</Tabs.Content>
+
+			<Tabs.Content value="data" class={tabContentStyles}>
+				<div class={sectionStyles}>
+					<h2 class={sectionTitleStyles}>Database Backup</h2>
+
+					<div class={infoBoxStyles}>
+						Export a complete backup of your Limnl database. This backup includes all your dreams, bugs, mind dumps, and other data. Store it in a safe place to restore your journal if needed.
+					</div>
+
+					{#if backupError}
+						<div class={errorStyles}>
+							{backupError}
+						</div>
+					{/if}
+
+					{#if backupSuccess}
+						<div class={successStyles}>
+							{backupSuccess}
+						</div>
+					{/if}
+
+					<div class={formGroupStyles}>
+						<Button
+							variant="primary"
+							type="button"
+							onclick={handleBackupDatabase}
+							disabled={backupInProgress}
+						>
+							<Database size={20} />
+							{backupInProgress ? 'Backing up...' : 'Backup Database'}
+						</Button>
+						<p class={helpTextStyles}>
+							Downloads a copy of your entire database file (dreams.db)
+						</p>
+					</div>
 				</div>
 			</Tabs.Content>
 		</Tabs.Root>

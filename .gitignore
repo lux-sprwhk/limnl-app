@@ -31,3 +31,5 @@ src-tauri/target/
 src-tauri/gen/
 src-tauri/WixTools/
 target/
+target/rust-analyzer/flycheck0/stderr
+target/rust-analyzer/flycheck0/stdout
