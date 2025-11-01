@@ -204,7 +204,7 @@ impl Database {
         let conn = self.get_connection();
 
         let mut stmt = conn.prepare(
-            "SELECT b.id, b.title, b.description, b.status, b.cards_drawn, b.conversation_history, b.created_at, b.updated_at, b.resolved_at
+            "SELECT b.id, b.title, b.description, b.status, b.cards_drawn, b.conversation_history, b.notes, b.created_at, b.updated_at, b.resolved_at
              FROM bugs b
              INNER JOIN bug_cards bc ON b.id = bc.bug_id
              WHERE bc.card_id = ?1
@@ -220,9 +220,10 @@ impl Database {
                     status: row.get(3)?,
                     cards_drawn: row.get(4)?,
                     conversation_history: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                    updated_at: row.get::<_, String>(7)?.parse().unwrap(),
-                    resolved_at: row.get::<_, Option<String>>(8)?.map(|s| s.parse().unwrap()),
+                    notes: row.get(6)?,
+                    created_at: row.get::<_, String>(7)?.parse().unwrap(),
+                    updated_at: row.get::<_, String>(8)?.parse().unwrap(),
+                    resolved_at: row.get::<_, Option<String>>(9)?.map(|s| s.parse().unwrap()),
                 })
             })?
             .collect::<SqlResult<Vec<Bug>>>()?;

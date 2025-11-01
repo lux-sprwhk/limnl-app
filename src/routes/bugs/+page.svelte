@@ -164,7 +164,6 @@
 		}
 	}
 
-
 	async function updateBugStatus(bugId: number, status: 'active' | 'resolved' | 'archived') {
 		try {
 			await bugsApi.update({
@@ -220,15 +219,13 @@
 <div class={containerStyles}>
 	<div class={contentStyles}>
 		<div class={headerStyles}>
-			<h1 class={titleStyles}>
-				Bug Tracker
-			</h1>
+			<h1 class={titleStyles}>Bug Tracker</h1>
 			<div class={buttonGroupStyles}>
-				<Button variant="primary" onclick={() => window.location.href = '/bugs/create'}>
+				<Button variant="primary" onclick={() => (window.location.href = '/bugs/create')}>
 					<Plus size={20} />
 					Create New Bug
 				</Button>
-				<Button variant="primary" onclick={() => window.location.href = '/bugs/discover'}>
+				<Button variant="primary" onclick={() => (window.location.href = '/bugs/discover')}>
 					<Sparkles size={20} />
 					Discover New Bug
 				</Button>
@@ -236,9 +233,7 @@
 		</div>
 
 		<!-- Bugs List -->
-		<h2 class={sectionTitleStyles}>
-			Your Bugs
-		</h2>
+		<h2 class={sectionTitleStyles}>Your Bugs</h2>
 
 		<div class={filterStyles}>
 			<button
@@ -297,13 +292,21 @@
 
 						<div class={bugActionsStyles}>
 							{#if bug.status === 'active'}
-								<Button variant="outline" size="sm" onclick={() => updateBugStatus(bug.id!, 'resolved')}>
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={() => updateBugStatus(bug.id!, 'resolved')}
+								>
 									<CheckCircle size={16} />
 									Mark Resolved
 								</Button>
 							{/if}
 							{#if bug.status !== 'archived'}
-								<Button variant="outline" size="sm" onclick={() => updateBugStatus(bug.id!, 'archived')}>
+								<Button
+									variant="outline"
+									size="sm"
+									onclick={() => updateBugStatus(bug.id!, 'archived')}
+								>
 									<Archive size={16} />
 									Archive
 								</Button>

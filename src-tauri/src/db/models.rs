@@ -42,6 +42,7 @@ pub struct Bug {
     pub status: String, // "active", "resolved", "archived"
     pub cards_drawn: Option<String>, // JSON string of card IDs
     pub conversation_history: Option<String>, // JSON string of conversation
+    pub notes: Option<String>, // JSON string of notes array
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub resolved_at: Option<DateTime<Utc>>,
@@ -53,6 +54,7 @@ pub struct CreateBugInput {
     pub description: String,
     pub cards_drawn: Option<String>,
     pub conversation_history: Option<String>,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +65,7 @@ pub struct UpdateBugInput {
     pub status: Option<String>,
     pub cards_drawn: Option<String>,
     pub conversation_history: Option<String>,
+    pub notes: Option<String>,
     pub resolved_at: Option<DateTime<Utc>>,
 }
 

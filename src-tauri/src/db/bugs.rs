@@ -10,14 +10,15 @@ impl Database {
 
         // Note: cards_drawn is kept for backward compatibility but should use bug_cards table instead
         conn.execute(
-            "INSERT INTO bugs (title, description, status, cards_drawn, conversation_history, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO bugs (title, description, status, cards_drawn, conversation_history, notes, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             params![
                 input.title,
                 input.description,
                 "active",
                 input.cards_drawn,
                 input.conversation_history,
+                input.notes,
                 now.to_rfc3339(),
                 now.to_rfc3339(),
             ],
@@ -32,6 +33,7 @@ impl Database {
             status: "active".to_string(),
             cards_drawn: input.cards_drawn,
             conversation_history: input.conversation_history,
+            notes: input.notes,
             created_at: now,
             updated_at: now,
             resolved_at: None,
@@ -67,7 +69,7 @@ impl Database {
         let conn = self.get_connection();
 
         let mut stmt = conn.prepare(
-            "SELECT id, title, description, status, cards_drawn, conversation_history, created_at, updated_at, resolved_at
+            "SELECT id, title, description, status, cards_drawn, conversation_history, notes, created_at, updated_at, resolved_at
              FROM bugs WHERE id = ?1",
         )?;
 
@@ -79,9 +81,10 @@ impl Database {
                 status: row.get(3)?,
                 cards_drawn: row.get(4)?,
                 conversation_history: row.get(5)?,
-                created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                updated_at: row.get::<_, String>(7)?.parse().unwrap(),
-                resolved_at: row.get::<_, Option<String>>(8)?.map(|s| s.parse().unwrap()),
+                notes: row.get(6)?,
+                created_at: row.get::<_, String>(7)?.parse().unwrap(),
+                updated_at: row.get::<_, String>(8)?.parse().unwrap(),
+                resolved_at: row.get::<_, Option<String>>(9)?.map(|s| s.parse().unwrap()),
             })
         });
 
@@ -97,7 +100,7 @@ impl Database {
 
         let (query, params) = if let Some(status_filter) = status {
             (
-                "SELECT id, title, description, status, cards_drawn, conversation_history, created_at, updated_at, resolved_at
+                "SELECT id, title, description, status, cards_drawn, conversation_history, notes, created_at, updated_at, resolved_at
                  FROM bugs
                  WHERE status = ?1
                  ORDER BY created_at DESC".to_string(),
@@ -105,7 +108,7 @@ impl Database {
             )
         } else {
             (
-                "SELECT id, title, description, status, cards_drawn, conversation_history, created_at, updated_at, resolved_at
+                "SELECT id, title, description, status, cards_drawn, conversation_history, notes, created_at, updated_at, resolved_at
                  FROM bugs
                  ORDER BY created_at DESC".to_string(),
                 vec![],
@@ -123,9 +126,10 @@ impl Database {
                     status: row.get(3)?,
                     cards_drawn: row.get(4)?,
                     conversation_history: row.get(5)?,
-                    created_at: row.get::<_, String>(6)?.parse().unwrap(),
-                    updated_at: row.get::<_, String>(7)?.parse().unwrap(),
-                    resolved_at: row.get::<_, Option<String>>(8)?.map(|s| s.parse().unwrap()),
+                    notes: row.get(6)?,
+                    created_at: row.get::<_, String>(7)?.parse().unwrap(),
+                    updated_at: row.get::<_, String>(8)?.parse().unwrap(),
+                    resolved_at: row.get::<_, Option<String>>(9)?.map(|s| s.parse().unwrap()),
                 })
             })?
             .collect::<SqlResult<Vec<Bug>>>()?;
@@ -161,6 +165,9 @@ impl Database {
         if let Some(conversation_history) = input.conversation_history {
             existing.conversation_history = Some(conversation_history);
         }
+        if let Some(notes) = input.notes {
+            existing.notes = Some(notes);
+        }
         if let Some(resolved_at) = input.resolved_at {
             existing.resolved_at = Some(resolved_at);
         }
@@ -169,14 +176,15 @@ impl Database {
 
         conn.execute(
             "UPDATE bugs
-             SET title = ?1, description = ?2, status = ?3, cards_drawn = ?4, conversation_history = ?5, updated_at = ?6, resolved_at = ?7
-             WHERE id = ?8",
+             SET title = ?1, description = ?2, status = ?3, cards_drawn = ?4, conversation_history = ?5, notes = ?6, updated_at = ?7, resolved_at = ?8
+             WHERE id = ?9",
             params![
                 existing.title,
                 existing.description,
                 existing.status,
                 existing.cards_drawn,
                 existing.conversation_history,
+                existing.notes,
                 existing.updated_at.to_rfc3339(),
                 existing.resolved_at.map(|dt| dt.to_rfc3339()),
                 input.id,

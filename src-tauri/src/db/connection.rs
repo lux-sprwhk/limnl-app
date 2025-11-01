@@ -72,6 +72,7 @@ impl Database {
                 status TEXT NOT NULL DEFAULT 'active',
                 cards_drawn TEXT,
                 conversation_history TEXT,
+                notes TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 resolved_at TEXT
@@ -140,6 +141,11 @@ impl Database {
             "CREATE INDEX IF NOT EXISTS idx_bug_cards_bug_id ON bug_cards(bug_id)",
             [],
         )?;
+
+        // Migration: Add notes column to bugs table if it doesn't exist
+        // This is a simple migration for existing databases
+        let _ = conn.execute("ALTER TABLE bugs ADD COLUMN notes TEXT", []);
+        // Ignore error if column already exists
 
         // Release the connection lock before seeding
         drop(conn);

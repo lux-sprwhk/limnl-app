@@ -6,7 +6,8 @@
 	import { bugsApi } from '$lib/api/bugs';
 	import { cardsApi } from '$lib/api/cards';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Sparkles, CheckCircle, Archive, Trash2, Edit } from 'lucide-svelte';
+	import BugNotes from '$lib/components/BugNotes.svelte';
+	import { ArrowLeft, Sparkles, CheckCircle, Archive, Trash2, Edit, StickyNote } from 'lucide-svelte';
 
 	let bug = $state<Bug | null>(null);
 	let cards = $state<DbCard[]>([]);
@@ -77,6 +78,12 @@
 			window.location.href = '/bugs';
 		} catch (error) {
 			console.error('Failed to delete bug:', error);
+		}
+	}
+
+	function handleNotesUpdate(notes: string) {
+		if (bug) {
+			bug.notes = notes;
 		}
 	}
 
@@ -331,6 +338,17 @@
 				</div>
 				<div class={descriptionStyles}>{bug.description}</div>
 			</div>
+
+			<!-- Notes -->
+			{#if bug.id}
+				<div class={sectionStyles}>
+					<div class={sectionTitleStyles}>
+						<StickyNote size={20} />
+						Notes
+					</div>
+					<BugNotes bugId={bug.id} notes={bug.notes} onUpdate={handleNotesUpdate} />
+				</div>
+			{/if}
 
 			<!-- Associated Cards -->
 			<div class={sectionStyles}>
