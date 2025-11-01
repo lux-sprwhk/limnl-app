@@ -277,7 +277,7 @@
 				</div>
 			{:else}
 				{#each bugs as bug (bug.id)}
-					<div class={bugCardStyles}>
+					<a href={`/bugs/${bug.id}`} class={bugCardStyles}>
 						<div class={bugHeaderStyles}>
 							<div style="flex: 1;">
 								<h2 class={bugTitleStyles}>{bug.title}</h2>
@@ -293,7 +293,7 @@
 							</div>
 						</div>
 
-						<p class={bugDescriptionStyles}>{bug.description}</p>
+						<!-- <p class={bugDescriptionStyles}>{bug.description}</p> -->
 
 						<div class={bugActionsStyles}>
 							{#if bug.status === 'active'}
@@ -313,7 +313,7 @@
 								Delete
 							</Button>
 						</div>
-					</div>
+					</a>
 				{/each}
 			{/if}
 		</div>

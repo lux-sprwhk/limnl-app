@@ -295,7 +295,6 @@
 						{#each bugs as bug (bug.id)}
 							<a href={`/bugs/${bug.id}`} class={bugItemStyles}>
 								<div class={bugTitleStyles}>{bug.title}</div>
-								<div class={bugDescriptionStyles}>{bug.description}</div>
 								<div class={bugStatusStyles} style={`background-color: ${bug.status === 'active' ? 'rgba(59, 130, 246, 0.1)' : bug.status === 'resolved' ? 'rgba(34, 197, 94, 0.1)' : 'rgba(107, 114, 128, 0.1)'}; color: ${bug.status === 'active' ? 'rgb(96, 165, 250)' : bug.status === 'resolved' ? 'rgb(74, 222, 128)' : 'rgb(156, 163, 175)'}`}>
 									{bug.status}
 								</div>
