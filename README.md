@@ -1,4 +1,4 @@
-# Limnl - Personal Insight & Dream Journal
+# Limnl Space - Personal Insight & Dream Journal
 
 A privacy-first desktop application for self-reflection, dream journaling, problem tracking, and personal insights. Built with Tauri and SvelteKit, combining powerful local-first data storage with optional AI-powered features.
 
