@@ -393,7 +393,17 @@
 	function drawCards() {
 		const allCards = cardsData.cards;
 		const shuffled = [...allCards].sort(() => Math.random() - 0.5);
-		drawnCards = shuffled.slice(0, 3);
+		
+		// Calculate how many cards to draw based on selected cards
+		let cardsToDraw = 3;
+		if (selectedCards.length === 1) {
+			cardsToDraw = 2;
+		} else if (selectedCards.length === 2) {
+			cardsToDraw = 1;
+		}
+		// If selectedCards.length === 3, we don't draw any more cards (but this shouldn't happen in normal flow)
+		
+		drawnCards = shuffled.slice(0, cardsToDraw);
 		
 		// Generate commentaries for all cards in one call if LLM is configured
 		if (selectedBlock && llmSettings.config.provider !== 'disabled') {
