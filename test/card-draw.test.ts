@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Card } from '../src/lib/types/card';
+import type { Card } from '$lib/types/card';
+
+// Constants
+const MAX_SELECTED_CARDS = 3;
 
 // Mock card data for testing
 const mockCards: Card[] = Array.from({ length: 36 }, (_, i) => ({
@@ -26,7 +29,7 @@ describe('Card Draw Behavior', () => {
 		it('should draw 3 cards when no cards are selected', () => {
 			const selectedCards: Card[] = [];
 			const cardsToDraw = calculateCardsToDraw(selectedCards.length);
-			expect(cardsToDraw).toBe(3);
+			expect(cardsToDraw).toBe(MAX_SELECTED_CARDS);
 		});
 
 		it('should draw 2 cards when 1 card is selected', () => {
@@ -41,7 +44,7 @@ describe('Card Draw Behavior', () => {
 			expect(cardsToDraw).toBe(1);
 		});
 
-		it('should draw 0 cards when 3 cards are selected (max reached)', () => {
+		it(`should draw 0 cards when ${MAX_SELECTED_CARDS} cards are selected (max reached)`, () => {
 			const selectedCards = [mockCards[0], mockCards[1], mockCards[2]];
 			const cardsToDraw = calculateCardsToDraw(selectedCards.length);
 			expect(cardsToDraw).toBe(0);
@@ -53,30 +56,37 @@ describe('Card Draw Behavior', () => {
 			const shuffled = [...mockCards].sort(() => Math.random() - 0.5);
 			const drawnCards = shuffled.slice(0, cardsToDraw);
 			
-			expect(drawnCards.length).toBe(3);
+			expect(drawnCards.length).toBe(MAX_SELECTED_CARDS);
 			expect(drawnCards.every(card => mockCards.includes(card))).toBe(true);
 		});
 
-		it('should draw different cards on subsequent draws', () => {
+		it('should draw different cards on subsequent draws with different random seeds', () => {
 			const selectedCards = [mockCards[0]];
 			const cardsToDraw = calculateCardsToDraw(selectedCards.length);
 			
+			// First draw with random seed 0.5
+			vi.spyOn(Math, 'random').mockReturnValue(0.5);
 			const firstDraw = [...mockCards].sort(() => Math.random() - 0.5).slice(0, cardsToDraw);
+			
+			// Second draw with different random seed 0.3
+			vi.spyOn(Math, 'random').mockReturnValue(0.3);
 			const secondDraw = [...mockCards].sort(() => Math.random() - 0.5).slice(0, cardsToDraw);
 			
-			// With high probability, two random draws should be different
-			// (though there's a small chance they could be the same)
+			// Both draws should have correct length
 			expect(firstDraw.length).toBe(2);
 			expect(secondDraw.length).toBe(2);
+			
+			// Clean up mocks
+			vi.restoreAllMocks();
 		});
 
 		it('should handle edge case: unlimited draws with varying quantities', () => {
 			// Simulate multiple draw cycles
 			let selectedCards: Card[] = [];
 			
-			// First draw: 0 selected, should draw 3
+			// First draw: 0 selected, should draw MAX_SELECTED_CARDS
 			let cardsToDraw = calculateCardsToDraw(selectedCards.length);
-			expect(cardsToDraw).toBe(3);
+			expect(cardsToDraw).toBe(MAX_SELECTED_CARDS);
 			selectedCards = mockCards.slice(0, 1); // Simulate selecting 1 card
 			
 			// Second draw: 1 selected, should draw 2
@@ -87,9 +97,9 @@ describe('Card Draw Behavior', () => {
 			// Third draw: 2 selected, should draw 1
 			cardsToDraw = calculateCardsToDraw(selectedCards.length);
 			expect(cardsToDraw).toBe(1);
-			selectedCards = mockCards.slice(0, 3); // Simulate selecting 3 cards
+			selectedCards = mockCards.slice(0, MAX_SELECTED_CARDS); // Simulate selecting MAX_SELECTED_CARDS cards
 			
-			// Fourth draw: 3 selected, should draw 0 (max reached)
+			// Fourth draw: MAX_SELECTED_CARDS selected, should draw 0 (max reached)
 			cardsToDraw = calculateCardsToDraw(selectedCards.length);
 			expect(cardsToDraw).toBe(0);
 		});
@@ -127,12 +137,12 @@ describe('Card Draw Behavior', () => {
  * Calculates how many cards should be drawn based on selected cards count
  */
 function calculateCardsToDraw(selectedCardsCount: number): number {
-	let cardsToDraw = 3;
+	let cardsToDraw = MAX_SELECTED_CARDS;
 	if (selectedCardsCount === 1) {
 		cardsToDraw = 2;
 	} else if (selectedCardsCount === 2) {
 		cardsToDraw = 1;
-	} else if (selectedCardsCount === 3) {
+	} else if (selectedCardsCount === MAX_SELECTED_CARDS) {
 		cardsToDraw = 0;
 	}
 	return cardsToDraw;
