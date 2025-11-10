@@ -54,3 +54,43 @@ export const RECURRENCE_TIME_PERIODS: { value: RecurrenceTimePeriod; label: stri
 	{ value: 'months_ago', label: 'Months ago' },
 	{ value: 'last_year', label: 'Last year' }
 ];
+
+// Dream Analysis types
+export interface DreamAnalysis {
+	id?: number;
+	dream_id: number;
+	themes_patterns: string;
+	emotional_analysis: string;
+	narrative_summary: string;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface DreamAnalysisCard {
+	dream_analysis_id: number;
+	card_id: number;
+	card_name: string;
+	relevance_note?: string;
+	created_at: string;
+}
+
+export interface DreamAnalysisWithCards {
+	analysis: DreamAnalysis;
+	cards: DreamAnalysisCard[];
+}
+
+export interface GenerateDreamAnalysisRequest {
+	dream_id: number;
+	dream_title: string;
+	dream_content: string;
+	sleep_quality?: number;
+	config: {
+		provider: 'disabled' | 'ollama' | 'openai' | 'anthropic';
+		ollamaUrl: string;
+		ollamaModel: string;
+		openaiApiKey: string;
+		openaiModel: string;
+		anthropicApiKey: string;
+		anthropicModel: string;
+	};
+}

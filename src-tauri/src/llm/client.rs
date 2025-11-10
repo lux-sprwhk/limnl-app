@@ -1,8 +1,8 @@
-use super::types::{LLMConfig, LLMProvider};
+use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse};
 use super::prompts::{
     TITLE_GENERATION_PROMPT, DESCRIPTION_OPTIMIZATION_PROMPT, CARD_COMMENTARY_PROMPT,
     CARD_COMMENTARY_WITH_CONTEXT_PROMPT, MULTIPLE_CARDS_COMMENTARY_PROMPT,
-    DISCOVERY_CHAT_SYSTEM_PROMPT,
+    DISCOVERY_CHAT_SYSTEM_PROMPT, DREAM_ANALYSIS_PROMPT,
 };
 use reqwest;
 use serde_json::{json, Value};
@@ -1302,4 +1302,223 @@ async fn comment_on_multiple_cards_with_context_anthropic(
     config: &LLMConfig,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     comment_on_multiple_cards_anthropic(cards, life_area, config).await
+}
+
+// Dream analysis generation
+pub async fn generate_dream_analysis(
+    dream_title: &str,
+    dream_content: &str,
+    sleep_quality: Option<i32>,
+    config: &LLMConfig,
+) -> Result<GenerateDreamAnalysisResponse, String> {
+    match config.provider {
+        LLMProvider::Disabled => Err("LLM is disabled".to_string()),
+        LLMProvider::Ollama => generate_dream_analysis_ollama(dream_title, dream_content, sleep_quality, config).await,
+        LLMProvider::OpenAI => generate_dream_analysis_openai(dream_title, dream_content, sleep_quality, config).await,
+        LLMProvider::Anthropic => generate_dream_analysis_anthropic(dream_title, dream_content, sleep_quality, config).await,
+    }
+}
+
+async fn generate_dream_analysis_ollama(
+    dream_title: &str,
+    dream_content: &str,
+    sleep_quality: Option<i32>,
+    config: &LLMConfig,
+) -> Result<GenerateDreamAnalysisResponse, String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/api/generate", config.ollama_url);
+    let model = map_ollama_model(&config.ollama_model);
+
+    // Load cards.json
+    let cards_json = include_str!("../../cards.json");
+
+    // Build the prompt with cards and dream info
+    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", cards_json);
+    let sleep_quality_text = match sleep_quality {
+        Some(q) => format!("Sleep Quality: {}/5", q),
+        None => "Sleep Quality: Not specified".to_string(),
+    };
+
+    let full_prompt = format!(
+        "{}\n\nTitle: {}\n{}\n\nContent:\n{}",
+        prompt, dream_title, sleep_quality_text, dream_content
+    );
+
+    let response = client
+        .post(&url)
+        .json(&json!({
+            "model": model,
+            "prompt": full_prompt,
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ollama request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API error: {}", response.status()));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+
+    let response_text = data
+        .get("response")
+        .and_then(|v| v.as_str())
+        .ok_or("Invalid Ollama response format")?;
+
+    // Extract JSON from response
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_dream_analysis_openai(
+    dream_title: &str,
+    dream_content: &str,
+    sleep_quality: Option<i32>,
+    config: &LLMConfig,
+) -> Result<GenerateDreamAnalysisResponse, String> {
+    let client = reqwest::Client::new();
+    let model = map_openai_model(&config.openai_model);
+
+    // Load cards.json
+    let cards_json = include_str!("../../cards.json");
+
+    // Build the prompt with cards
+    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", cards_json);
+    let sleep_quality_text = match sleep_quality {
+        Some(q) => format!("Sleep Quality: {}/5", q),
+        None => "Sleep Quality: Not specified".to_string(),
+    };
+
+    let user_message = format!(
+        "Title: {}\n{}\n\nContent:\n{}",
+        dream_title, sleep_quality_text, dream_content
+    );
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {}", config.openai_api_key))
+        .json(&json!({
+            "model": model,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": prompt
+                },
+                {
+                    "role": "user",
+                    "content": user_message
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 1500
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("OpenAI request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("OpenAI API error: {}", error_text));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
+
+    let response_text = data
+        .get("choices")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|choice| choice.get("message"))
+        .and_then(|msg| msg.get("content"))
+        .and_then(|v| v.as_str())
+        .ok_or("Invalid OpenAI response format")?;
+
+    // Extract JSON from response
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_dream_analysis_anthropic(
+    dream_title: &str,
+    dream_content: &str,
+    sleep_quality: Option<i32>,
+    config: &LLMConfig,
+) -> Result<GenerateDreamAnalysisResponse, String> {
+    let client = reqwest::Client::new();
+    let model = map_anthropic_model(&config.anthropic_model);
+
+    // Load cards.json
+    let cards_json = include_str!("../../cards.json");
+
+    // Build the prompt with cards
+    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", cards_json);
+    let sleep_quality_text = match sleep_quality {
+        Some(q) => format!("Sleep Quality: {}/5", q),
+        None => "Sleep Quality: Not specified".to_string(),
+    };
+
+    let user_message = format!(
+        "{}\n\nTitle: {}\n{}\n\nContent:\n{}",
+        prompt, dream_title, sleep_quality_text, dream_content
+    );
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("Content-Type", "application/json")
+        .header("x-api-key", &config.anthropic_api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&json!({
+            "model": model,
+            "max_tokens": 1500,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": user_message
+                }
+            ]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        let error_text = response.text().await.unwrap_or_default();
+        return Err(format!("Anthropic API error: {}", error_text));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Anthropic response: {}", e))?;
+
+    let response_text = data
+        .get("content")
+        .and_then(|v| v.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|item| item.get("text"))
+        .and_then(|v| v.as_str())
+        .ok_or("Invalid Anthropic response format")?;
+
+    // Extract JSON from response
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }

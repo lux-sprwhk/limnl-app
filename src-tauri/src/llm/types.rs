@@ -52,3 +52,26 @@ pub struct OptimizeDescriptionResponse {
 pub struct CardCommentaryResponse {
     pub commentary: String,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateDreamAnalysisRequest {
+    pub dream_id: i64,
+    pub dream_title: String,
+    pub dream_content: String,
+    pub sleep_quality: Option<i32>,
+    pub config: LLMConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SymbolCard {
+    pub card_name: String,
+    pub relevance_note: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateDreamAnalysisResponse {
+    pub themes_patterns: String,
+    pub emotional_analysis: String,
+    pub narrative_summary: String,
+    pub symbol_cards: Vec<SymbolCard>,
+}

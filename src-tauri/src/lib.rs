@@ -26,6 +26,8 @@ pub fn run() {
             commands::search_dreams,
             commands::generate_dream_title,
             commands::optimize_dream_description,
+            commands::generate_dream_analysis,
+            commands::get_dream_analysis_with_cards,
             commands::create_bug,
             commands::get_bug,
             commands::list_bugs,

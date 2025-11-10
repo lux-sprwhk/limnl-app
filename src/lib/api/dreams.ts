@@ -1,5 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Dream, CreateDreamInput, UpdateDreamInput } from '$lib/types/dream';
+import type {
+	Dream,
+	CreateDreamInput,
+	UpdateDreamInput,
+	DreamAnalysisWithCards,
+	GenerateDreamAnalysisRequest
+} from '$lib/types/dream';
 
 export const dreamsApi = {
 	async create(input: CreateDreamInput): Promise<Dream> {
@@ -24,5 +30,16 @@ export const dreamsApi = {
 
 	async search(query: string): Promise<Dream[]> {
 		return await invoke<Dream[]>('search_dreams', { query });
+	},
+
+	// Dream Analysis
+	async generateAnalysis(request: GenerateDreamAnalysisRequest): Promise<DreamAnalysisWithCards> {
+		return await invoke<DreamAnalysisWithCards>('generate_dream_analysis', { request });
+	},
+
+	async getAnalysisWithCards(dreamId: number): Promise<DreamAnalysisWithCards | null> {
+		return await invoke<DreamAnalysisWithCards | null>('get_dream_analysis_with_cards', {
+			dreamId
+		});
 	}
 };
