@@ -1,8 +1,8 @@
 use tauri::Manager;
 
-mod db;
+pub mod db;
 mod commands;
-mod llm;
+pub mod llm;
 
 use db::Database;
 
