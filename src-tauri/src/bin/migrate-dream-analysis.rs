@@ -151,7 +151,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "anthropic" => {
             let api_key = env::var("ANTHROPIC_API_KEY").expect("ANTHROPIC_API_KEY not set");
             let model = env::var("ANTHROPIC_MODEL")
-                .unwrap_or_else(|_| "claude-3-5-haiku-20241022".to_string());
+                .unwrap_or_else(|_| "claude-haiku-4-5".to_string());
             println!("Anthropic Model: {}", model);
 
             (LLMProvider::Anthropic, LLMConfig {
@@ -188,11 +188,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for dream in &dreams {
         if let Some(dream_id) = dream.id {
             match db.get_dream_analysis_with_cards(dream_id) {
-                Ok(_) => {
+                Ok(Some(_)) => {
                     // Has analysis, skip
                 }
-                Err(_) => {
-                    // No analysis, needs it
+                Ok(None) | Err(_) => {
+                    // No analysis or error, needs it
                     dreams_needing_analysis.push(dream.clone());
                 }
             }
@@ -281,6 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await
         {
             Ok(analysis_response) => {
+                println!("  Saving analysis to database...");
                 // Save to database using Database methods
                 match db.create_dream_analysis(CreateDreamAnalysisInput {
                     dream_id,
@@ -289,14 +290,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     narrative_summary: analysis_response.narrative_summary.clone(),
                 }) {
                     Ok(analysis) => {
+                        println!("  Analysis saved. Linking {} symbol cards...", analysis_response.symbol_cards.len());
                         // Link cards
                         for symbol in &analysis_response.symbol_cards {
+                            println!("    Looking up card: {}", symbol.card_name);
                             if let Ok(Some(card)) = db.get_card_by_name(&symbol.card_name) {
+                                println!("    Linking card {} to analysis", symbol.card_name);
                                 let _ = db.link_card_to_dream_analysis(
                                     analysis.id.unwrap_or(0),
                                     card.id.unwrap_or(0),
                                     Some(symbol.relevance_note.clone()),
                                 );
+                            } else {
+                                println!("    Card not found: {}", symbol.card_name);
                             }
                         }
 

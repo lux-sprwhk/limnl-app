@@ -5,12 +5,19 @@ use rusqlite::{params, Result as SqlResult};
 
 impl Database {
     pub fn create_dream_analysis(&self, input: CreateDreamAnalysisInput) -> SqlResult<DreamAnalysis> {
-        let conn = self.get_connection();
         let now = Utc::now();
 
-        // Check if analysis already exists for this dream
-        let existing = self.get_dream_analysis(input.dream_id)?;
-        if existing.is_some() {
+        // Get connection once and do all operations within this scope
+        let conn = self.get_connection();
+
+        // Check if analysis already exists for this dream (inline query to avoid nested lock)
+        let existing_count: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM dream_analyses WHERE dream_id = ?1",
+            params![input.dream_id],
+            |row| row.get(0),
+        )?;
+
+        if existing_count > 0 {
             // Delete existing analysis before creating new one
             conn.execute(
                 "DELETE FROM dream_analyses WHERE dream_id = ?1",

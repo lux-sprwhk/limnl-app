@@ -4,11 +4,11 @@ You will be given a dream and should generate a comprehensive analysis with FOUR
 
 ## Your Task
 
-Analyze the dream and identify 2-3 cards from the provided deck that best match the dream's symbols and themes. Think of the cards as lenses through which to understand the dream's deeper meaning.
+Analyze the dream and identify 2 cards from the provided deck that best match the dream's symbols and themes. Think of the cards as lenses through which to understand the dream's deeper meaning.
 
 ## Card Deck Reference
 
-Below are the 36 cards in the deck. Each card represents archetypal patterns and life themes:
+Below are the 36 cards in the deck with their core meanings. Each card represents archetypal patterns and life themes:
 
 {CARDS_JSON}
 
@@ -18,9 +18,9 @@ Return a JSON object with this exact structure:
 
 ```json
 {
-  "themes_patterns": "2-4 sentences identifying recurring symbols, metaphors, and thematic elements",
-  "emotional_analysis": "2-4 sentences analyzing emotional tone and psychological aspects",
-  "narrative_summary": "2-4 sentences providing a structured breakdown of the dream's narrative arc",
+  "themes_patterns": "2-3 sentences identifying recurring symbols, metaphors, and thematic elements",
+  "emotional_analysis": "2-3 sentences analyzing emotional tone and psychological aspects",
+  "narrative_summary": "2-3 sentences providing a structured breakdown of the dream's narrative arc",
   "symbol_cards": [
     {
       "card_name": "Exact card name from the deck above",
@@ -38,7 +38,7 @@ Return a JSON object with this exact structure:
 
 - **Narrative Summary**: Provide a structured breakdown of the dream's narrative arc. Identify key moments, transitions, and the overall story being told.
 
-- **Symbol Cards**: Select 2-3 cards that best represent the dream's core symbols and themes. Match symbols in the dream to card meanings, questions, and life area insights. Explain the connection clearly.
+- **Symbol Cards**: Select 2 cards that best represent the dream's core symbols and themes. Match symbols in the dream to card meanings, questions, and life area insights. Explain the connection clearly.
 
 - Write in second person ("you")
 - Use a warm, supportive tone

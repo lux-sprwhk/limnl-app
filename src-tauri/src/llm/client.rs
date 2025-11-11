@@ -1304,6 +1304,27 @@ async fn comment_on_multiple_cards_with_context_anthropic(
     comment_on_multiple_cards_anthropic(cards, life_area, config).await
 }
 
+// Helper to extract just card names and core meanings from cards.json
+fn extract_card_summaries() -> Result<String, String> {
+    let cards_json = include_str!("../../cards.json");
+    let cards_data: Value = serde_json::from_str(cards_json)
+        .map_err(|e| format!("Failed to parse cards.json: {}", e))?;
+
+    let cards_array = cards_data
+        .get("cards")
+        .and_then(|v| v.as_array())
+        .ok_or("Invalid cards.json structure")?;
+
+    let mut summaries = Vec::new();
+    for card in cards_array {
+        let name = card.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
+        let meaning = card.get("core_meaning").and_then(|v| v.as_str()).unwrap_or("No meaning");
+        summaries.push(format!("- {}: {}", name, meaning));
+    }
+
+    Ok(summaries.join("\n"))
+}
+
 // Dream analysis generation
 pub async fn generate_dream_analysis(
     dream_title: &str,
@@ -1325,15 +1346,18 @@ async fn generate_dream_analysis_ollama(
     sleep_quality: Option<i32>,
     config: &LLMConfig,
 ) -> Result<GenerateDreamAnalysisResponse, String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
     let url = format!("{}/api/generate", config.ollama_url);
     let model = map_ollama_model(&config.ollama_model);
 
-    // Load cards.json
-    let cards_json = include_str!("../../cards.json");
+    // Extract simplified card summaries
+    let card_summaries = extract_card_summaries()?;
 
     // Build the prompt with cards and dream info
-    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", cards_json);
+    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", &card_summaries);
     let sleep_quality_text = match sleep_quality {
         Some(q) => format!("Sleep Quality: {}/5", q),
         None => "Sleep Quality: Not specified".to_string(),
@@ -1343,6 +1367,10 @@ async fn generate_dream_analysis_ollama(
         "{}\n\nTitle: {}\n{}\n\nContent:\n{}",
         prompt, dream_title, sleep_quality_text, dream_content
     );
+
+    eprintln!("Sending request to Ollama...");
+    eprintln!("Model: {}", model);
+    eprintln!("Prompt length: {} chars", full_prompt.len());
 
     let response = client
         .post(&url)
@@ -1354,6 +1382,8 @@ async fn generate_dream_analysis_ollama(
         .send()
         .await
         .map_err(|e| format!("Ollama request failed: {}", e))?;
+
+    eprintln!("Received response with status: {}", response.status());
 
     if !response.status().is_success() {
         return Err(format!("Ollama API error: {}", response.status()));
@@ -1384,14 +1414,17 @@ async fn generate_dream_analysis_openai(
     sleep_quality: Option<i32>,
     config: &LLMConfig,
 ) -> Result<GenerateDreamAnalysisResponse, String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
     let model = map_openai_model(&config.openai_model);
 
-    // Load cards.json
-    let cards_json = include_str!("../../cards.json");
+    // Extract simplified card summaries
+    let card_summaries = extract_card_summaries()?;
 
     // Build the prompt with cards
-    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", cards_json);
+    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", &card_summaries);
     let sleep_quality_text = match sleep_quality {
         Some(q) => format!("Sleep Quality: {}/5", q),
         None => "Sleep Quality: Not specified".to_string(),
@@ -1401,6 +1434,11 @@ async fn generate_dream_analysis_openai(
         "Title: {}\n{}\n\nContent:\n{}",
         dream_title, sleep_quality_text, dream_content
     );
+
+    eprintln!("Sending request to OpenAI API...");
+    eprintln!("Model: {}", model);
+    eprintln!("System prompt length: {} chars", prompt.len());
+    eprintln!("User message length: {} chars", user_message.len());
 
     let response = client
         .post("https://api.openai.com/v1/chat/completions")
@@ -1424,6 +1462,8 @@ async fn generate_dream_analysis_openai(
         .send()
         .await
         .map_err(|e| format!("OpenAI request failed: {}", e))?;
+
+    eprintln!("Received response with status: {}", response.status());
 
     if !response.status().is_success() {
         let error_text = response.text().await.unwrap_or_default();
@@ -1459,14 +1499,17 @@ async fn generate_dream_analysis_anthropic(
     sleep_quality: Option<i32>,
     config: &LLMConfig,
 ) -> Result<GenerateDreamAnalysisResponse, String> {
-    let client = reqwest::Client::new();
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
     let model = map_anthropic_model(&config.anthropic_model);
 
-    // Load cards.json
-    let cards_json = include_str!("../../cards.json");
+    // Extract simplified card summaries
+    let card_summaries = extract_card_summaries()?;
 
     // Build the prompt with cards
-    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", cards_json);
+    let prompt = DREAM_ANALYSIS_PROMPT.replace("{CARDS_JSON}", &card_summaries);
     let sleep_quality_text = match sleep_quality {
         Some(q) => format!("Sleep Quality: {}/5", q),
         None => "Sleep Quality: Not specified".to_string(),
@@ -1476,6 +1519,10 @@ async fn generate_dream_analysis_anthropic(
         "{}\n\nTitle: {}\n{}\n\nContent:\n{}",
         prompt, dream_title, sleep_quality_text, dream_content
     );
+
+    eprintln!("Sending request to Anthropic API...");
+    eprintln!("Model: {}", model);
+    eprintln!("Message length: {} chars", user_message.len());
 
     let response = client
         .post("https://api.anthropic.com/v1/messages")
@@ -1496,16 +1543,21 @@ async fn generate_dream_analysis_anthropic(
         .await
         .map_err(|e| format!("Anthropic request failed: {}", e))?;
 
+    eprintln!("Received response with status: {}", response.status());
+
     if !response.status().is_success() {
         let error_text = response.text().await.unwrap_or_default();
         return Err(format!("Anthropic API error: {}", error_text));
     }
 
+    eprintln!("Reading response body...");
     let data: Value = response
         .json()
         .await
         .map_err(|e| format!("Failed to parse Anthropic response: {}", e))?;
+    eprintln!("Response body parsed successfully");
 
+    eprintln!("Extracting text content from response...");
     let response_text = data
         .get("content")
         .and_then(|v| v.as_array())
@@ -1513,12 +1565,18 @@ async fn generate_dream_analysis_anthropic(
         .and_then(|item| item.get("text"))
         .and_then(|v| v.as_str())
         .ok_or("Invalid Anthropic response format")?;
+    eprintln!("Response text length: {} chars", response_text.len());
 
     // Extract JSON from response
+    eprintln!("Extracting JSON from response text...");
     let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
     let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
     let json_str = &response_text[json_start..=json_end];
+    eprintln!("JSON string length: {} chars", json_str.len());
 
-    serde_json::from_str(json_str)
-        .map_err(|e| format!("Failed to parse JSON response: {}", e))
+    eprintln!("Parsing JSON analysis response...");
+    let result = serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))?;
+    eprintln!("Analysis parsed successfully!");
+    Ok(result)
 }
