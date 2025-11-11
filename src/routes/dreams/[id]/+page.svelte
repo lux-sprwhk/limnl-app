@@ -4,7 +4,7 @@
 	import { dreamsApi } from '$lib/api/dreams';
 	import type { Dream, DreamAnalysisWithCards } from '$lib/types/dream';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Edit, Trash2, Calendar, Moon, Sparkles } from 'lucide-svelte';
+	import { ArrowLeft, Edit, Trash2, Calendar, Moon, Sparkles, Palette, Music, BookOpen } from 'lucide-svelte';
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 
 	let { data } = $props();
@@ -13,7 +13,7 @@
 	let dream = $state<Dream | null>(null);
 	let loading = $state(true);
 	let deleting = $state(false);
-	let activeTab = $state<'overview' | 'analysis'>('overview');
+	let activeTab = $state<'overview' | 'analysis' | 'creative'>('overview');
 	let analysis = $state<DreamAnalysisWithCards | null>(null);
 	let analysisLoading = $state(false);
 	let analysisError = $state<string | null>(null);
@@ -202,6 +202,43 @@
 		fontSize: 'sm',
 		lineHeight: '1.6',
 		color: 'text.secondary'
+	});
+
+	const promptSectionStyles = css({
+		marginBottom: '2rem'
+	});
+
+	const promptSectionTitleStyles = css({
+		fontSize: 'lg',
+		fontWeight: 'semibold',
+		color: 'breakthrough.300',
+		marginBottom: '1rem',
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.5rem'
+	});
+
+	const promptListStyles = css({
+		display: 'flex',
+		flexDirection: 'column',
+		gap: '0.75rem'
+	});
+
+	const promptItemStyles = css({
+		padding: '1rem',
+		backgroundColor: 'void.800',
+		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		fontSize: 'md',
+		lineHeight: '1.6',
+		color: 'text.primary',
+		transition: 'all 0.2s',
+		cursor: 'pointer',
+		'&:hover': {
+			borderColor: 'breakthrough.500',
+			backgroundColor: 'void.700'
+		}
 	});
 
 	const emptyStateStyles = css({
@@ -402,6 +439,13 @@
 					<Sparkles size={16} />
 					Analysis
 				</button>
+				<button
+					class={`${tabButtonStyles} ${activeTab === 'creative' ? tabButtonActiveStyles : ''}`}
+					onclick={() => (activeTab = 'creative')}
+				>
+					<Palette size={16} />
+					Creative
+				</button>
 			</div>
 
 			<!-- Overview Tab -->
@@ -534,6 +578,66 @@
 						</Button>
 					</div>
 				{/if}
+			{/if}
+
+			<!-- Creative Tab -->
+			{#if activeTab === 'creative'}
+				<!-- Image Prompts Section -->
+				<div class={promptSectionStyles}>
+					<h3 class={promptSectionTitleStyles}>
+						<Palette size={20} />
+						Image Prompts
+					</h3>
+					<div class={promptListStyles}>
+						<div class={promptItemStyles}>
+							[Placeholder] A surreal dreamscape depicting {dream.title.toLowerCase()}...
+						</div>
+						<div class={promptItemStyles}>
+							[Placeholder] An ethereal visualization of the key moments from this dream...
+						</div>
+						<div class={promptItemStyles}>
+							[Placeholder] Abstract representation of the emotions and atmosphere in this dream...
+						</div>
+					</div>
+				</div>
+
+				<!-- Music Prompts Section -->
+				<div class={promptSectionStyles}>
+					<h3 class={promptSectionTitleStyles}>
+						<Music size={20} />
+						Music Prompts
+					</h3>
+					<div class={promptListStyles}>
+						<div class={promptItemStyles}>
+							[Placeholder] An ambient soundscape that captures the mood of {dream.title.toLowerCase()}...
+						</div>
+						<div class={promptItemStyles}>
+							[Placeholder] A melodic piece reflecting the emotional journey of this dream...
+						</div>
+						<div class={promptItemStyles}>
+							[Placeholder] Atmospheric music inspired by the themes and imagery in this dream...
+						</div>
+					</div>
+				</div>
+
+				<!-- Story Prompts Section -->
+				<div class={promptSectionStyles}>
+					<h3 class={promptSectionTitleStyles}>
+						<BookOpen size={20} />
+						Story Prompts
+					</h3>
+					<div class={promptListStyles}>
+						<div class={promptItemStyles}>
+							[Placeholder] Expand this dream into a short story exploring {dream.title.toLowerCase()}...
+						</div>
+						<div class={promptItemStyles}>
+							[Placeholder] Write a narrative that continues where this dream left off...
+						</div>
+						<div class={promptItemStyles}>
+							[Placeholder] Create a poetic interpretation of the symbols and themes in this dream...
+						</div>
+					</div>
+				</div>
 			{/if}
 		</div>
 	{/if}
