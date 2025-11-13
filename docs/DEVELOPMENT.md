@@ -9,6 +9,7 @@
 - [Styling with Panda CSS](#styling-with-panda-css)
 - [Components](#components)
 - [Testing the Application](#testing-the-application)
+- [Database Migrations](#database-migrations)
 - [Troubleshooting](#troubleshooting)
 - [Learn More](#learn-more)
 
@@ -163,10 +164,23 @@ Example:
 2. **Create a new dream**:
    - Click "New Dream" button
    - Fill in form (Date, Title, Content, Sleep Quality)
+   - Mark as recurring or lucid if applicable
    - Optionally click "Generate" next to title (requires LLM)
    - Click "Save Dream"
 3. **Search dreams**: Use search box to filter by keywords
-4. **Edit/Delete**: Click on dream → Edit or Delete
+4. **View dream details**: Click on dream to see full content
+5. **Generate AI Analysis** (requires LLM):
+   - Open dream detail page
+   - Click "Analyze Dream" button
+   - View themes, patterns, emotional analysis, and narrative summary
+   - See associated symbol cards automatically linked to the analysis
+6. **Generate Creative Prompts** (requires LLM and analysis):
+   - After generating analysis, click "Generate Creative Prompts"
+   - View AI-generated prompts for:
+     - Image generation (visual art inspired by the dream)
+     - Music creation (soundscape/playlist ideas)
+     - Story writing (narrative extensions of the dream)
+7. **Edit/Delete**: Click on dream → Edit or Delete
 
 ### Testing Mind Dumps
 
@@ -215,6 +229,69 @@ Example:
 3. **Enter PIN**: Should prompt for PIN on startup
 4. **Toggle PIN**: Settings → Toggle "Require PIN" off/on
 
+## Database Migrations
+
+Limnl uses a **file-based SQL migration system** that runs automatically on app startup.
+
+### How Migrations Work
+
+1. **Automatic Execution**: Migrations run when the app starts
+2. **Version Tracking**: Stored in `schema_version` table
+3. **Sequential Application**: Only new migrations are applied
+4. **Idempotent**: Safe to run multiple times (uses `IF NOT EXISTS`)
+
+### Migration Files
+
+Located in `src-tauri/migrations/`:
+- `001_initial.sql` - Base schema (8 tables)
+- `002_example.sql.example` - Template for new migrations
+- `README.md` - Comprehensive migration documentation
+
+### Checking Migration Status
+
+```bash
+# View current schema version
+sqlite3 ~/.local/share/limnl/limnl-journal/dreams.db "SELECT * FROM schema_version;"
+
+# List all tables
+sqlite3 ~/.local/share/limnl/limnl-journal/dreams.db ".tables"
+```
+
+### Adding a New Migration
+
+1. Create numbered SQL file: `src-tauri/migrations/002_my_feature.sql`
+2. Write SQL with `IF NOT EXISTS` for safety
+3. Register in `src-tauri/src/db/migrations.rs`:
+   ```rust
+   const MIGRATIONS: &[&str] = &[
+       include_str!("../../migrations/001_initial.sql"),
+       include_str!("../../migrations/002_my_feature.sql"),
+   ];
+   ```
+4. Test: `cargo test db::migrations::tests`
+5. Next app start will auto-apply the migration
+
+### Data Migration Tool
+
+For backfilling existing data (e.g., generating analyses for old dreams):
+
+```bash
+# Set LLM configuration
+export LLM_PROVIDER=ollama
+export OLLAMA_MODEL=llama3.2
+
+# Run data migration (in src-tauri directory)
+cargo run --bin migrate-dream-analysis
+
+# Dry run (preview only)
+cargo run --bin migrate-dream-analysis -- --dry-run
+
+# Limit to first N dreams
+cargo run --bin migrate-dream-analysis -- --limit 5
+```
+
+**Note**: This is separate from schema migrations and requires LLM configuration.
+
 ## Troubleshooting
 
 ### Frontend builds but Tauri doesn't start
@@ -228,12 +305,28 @@ Example:
 - Check file permissions on data directory
 - Ensure SQLite is working: `sqlite3 --version`
 - Verify database location exists
+- Check migration logs during app startup
+
+### Migration errors
+
+- Check `src-tauri/migrations/` directory exists
+- Ensure SQL syntax is valid
+- Verify `MIGRATIONS` array in `migrations.rs` is updated
+- Run tests: `cargo test db::migrations::tests`
+- Check terminal output for specific migration failures
 
 ### Type errors in frontend
 
 - Run `pnpm check` to see TypeScript errors
 - Ensure `@tauri-apps/api` is installed
 - Restart TypeScript server in your editor
+
+### LLM features not working
+
+- Verify LLM provider is configured in Settings
+- Check API keys are correct (for OpenAI/Anthropic)
+- For Ollama: ensure service is running (`ollama serve`)
+- Check browser console for error messages
 
 ## Learn More
 
