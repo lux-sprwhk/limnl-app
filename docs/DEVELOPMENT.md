@@ -285,6 +285,59 @@ sqlite3 ~/.local/share/limnl/limnl-journal/dreams.db ".tables"
 4. Test: `cargo test db::migrations::tests`
 5. Next app start will auto-apply the migration
 
+### Testing Migrations Locally
+
+Before committing a migration, test it locally:
+
+1. **Backup your database first**:
+   ```bash
+   # Linux
+   cp ~/.local/share/limnl/limnl-journal/dreams.db ~/dreams-backup.db
+   
+   # macOS
+   cp ~/Library/Application\ Support/com.limnl.limnl-journal/dreams.db ~/dreams-backup.db
+   
+   # Windows
+   copy %APPDATA%\limnl\limnl-journal\dreams.db %USERPROFILE%\dreams-backup.db
+   ```
+
+2. **Test the migration**:
+   ```bash
+   # Run the app - migration will execute on startup
+   pnpm tauri:dev
+   ```
+
+3. **Verify schema**:
+   ```bash
+   # Linux
+   sqlite3 ~/.local/share/limnl/limnl-journal/dreams.db ".schema dreams"
+   
+   # Check migration was recorded
+   sqlite3 ~/.local/share/limnl/limnl-journal/dreams.db "SELECT * FROM schema_version;"
+   ```
+
+4. **Verify existing data is preserved**:
+   ```bash
+   sqlite3 ~/.local/share/limnl/limnl-journal/dreams.db "SELECT COUNT(*) FROM dreams;"
+   ```
+
+5. **Test idempotency** (migration should be safe to run twice):
+   - Close and reopen the app
+   - Migration should not error or duplicate data
+
+### Migration Rollback
+
+Since Limnl is a desktop app with local data:
+
+- **Migrations are forward-only** (no automatic rollback)
+- **Users can restore from backup** if needed:
+  ```bash
+  # Restore from backup
+  cp ~/dreams-backup.db ~/.local/share/limnl/limnl-journal/dreams.db
+  ```
+- **Test thoroughly before release** - migrations are applied automatically on app startup
+- **Version tracking** prevents re-running migrations, but manual schema changes could cause issues
+
 ### Data Migration Tool
 
 For backfilling existing data (e.g., generating analyses for old dreams):

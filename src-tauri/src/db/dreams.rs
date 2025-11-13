@@ -215,3 +215,124 @@ impl Database {
         Ok(dreams)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::Database;
+    use rusqlite::Connection;
+    use chrono::Utc;
+    use std::sync::Mutex;
+
+    fn setup_test_db() -> Database {
+        // Use in-memory database for testing
+        let conn = Connection::open_in_memory().unwrap();
+        crate::db::migrations::run_migrations(&conn).unwrap();
+        
+        // Create Database with in-memory connection using test-only constructor
+        Database::from_connection(conn)
+    }
+
+    #[test]
+    fn test_create_dream_with_metadata() {
+        let db = setup_test_db();
+
+        let dream = db.create_dream(CreateDreamInput {
+            date_occurred: Utc::now(),
+            title: "Test Dream".to_string(),
+            content: "Test content".to_string(),
+            emotions_tags: None,
+            sleep_quality: Some(3),
+            is_recurring: Some(true),
+            last_occurrence_period: Some("last_week".to_string()),
+            is_lucid: Some(true),
+        }).unwrap();
+
+        assert_eq!(dream.title, "Test Dream");
+        assert_eq!(dream.is_recurring, Some(true));
+        assert_eq!(dream.last_occurrence_period, Some("last_week".to_string()));
+        assert_eq!(dream.is_lucid, Some(true));
+    }
+
+    #[test]
+    fn test_create_dream_with_null_metadata() {
+        let db = setup_test_db();
+
+        // Create dream without metadata fields (should allow NULL)
+        let dream = db.create_dream(CreateDreamInput {
+            date_occurred: Utc::now(),
+            title: "Test Dream".to_string(),
+            content: "Test content".to_string(),
+            emotions_tags: None,
+            sleep_quality: None,
+            is_recurring: None,
+            last_occurrence_period: None,
+            is_lucid: None,
+        }).unwrap();
+
+        assert_eq!(dream.is_recurring, None);
+        assert_eq!(dream.last_occurrence_period, None);
+        assert_eq!(dream.is_lucid, None);
+    }
+
+    #[test]
+    fn test_update_dream_metadata() {
+        let db = setup_test_db();
+
+        // Create dream without metadata
+        let dream = db.create_dream(CreateDreamInput {
+            date_occurred: Utc::now(),
+            title: "Test Dream".to_string(),
+            content: "Test content".to_string(),
+            emotions_tags: None,
+            sleep_quality: None,
+            is_recurring: None,
+            last_occurrence_period: None,
+            is_lucid: None,
+        }).unwrap();
+
+        let id = dream.id.unwrap();
+
+        // Update with metadata
+        let updated = db.update_dream(UpdateDreamInput {
+            id,
+            date_occurred: None,
+            title: None,
+            content: None,
+            emotions_tags: None,
+            sleep_quality: None,
+            is_recurring: Some(true),
+            last_occurrence_period: Some("yesterday".to_string()),
+            is_lucid: Some(false),
+        }).unwrap().unwrap();
+
+        assert_eq!(updated.is_recurring, Some(true));
+        assert_eq!(updated.last_occurrence_period, Some("yesterday".to_string()));
+        assert_eq!(updated.is_lucid, Some(false));
+    }
+
+    #[test]
+    fn test_retrieve_dream_with_metadata() {
+        let db = setup_test_db();
+
+        // Create dream with metadata
+        let created = db.create_dream(CreateDreamInput {
+            date_occurred: Utc::now(),
+            title: "Recurring Lucid Dream".to_string(),
+            content: "Content".to_string(),
+            emotions_tags: None,
+            sleep_quality: Some(5),
+            is_recurring: Some(true),
+            last_occurrence_period: Some("last_week".to_string()),
+            is_lucid: Some(true),
+        }).unwrap();
+
+        let id = created.id.unwrap();
+
+        // Retrieve and verify
+        let retrieved = db.get_dream(id).unwrap().unwrap();
+        assert_eq!(retrieved.is_recurring, Some(true));
+        assert_eq!(retrieved.last_occurrence_period, Some("last_week".to_string()));
+        assert_eq!(retrieved.is_lucid, Some(true));
+    }
+}

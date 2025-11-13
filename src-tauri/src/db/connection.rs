@@ -91,4 +91,78 @@ impl Database {
         std::fs::copy(&source, destination)?;
         Ok(())
     }
+
+    #[cfg(test)]
+    /// Create a Database instance from an existing connection (for testing only)
+    pub fn from_connection(conn: Connection) -> Self {
+        Database {
+            conn: Mutex::new(conn),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rusqlite::{Connection, params};
+    use crate::db::migrations;
+
+    #[test]
+    fn test_cards_json_is_embedded_and_parseable() {
+        // Test that cards.json is accessible from the new path
+        let cards_json = include_str!("../../../src/cards.json");
+        
+        // Verify it's not empty
+        assert!(!cards_json.is_empty(), "cards.json should not be empty");
+        
+        // Verify it's valid JSON
+        let cards_data: serde_json::Value = serde_json::from_str(cards_json)
+            .expect("cards.json should be valid JSON");
+        
+        // Verify it has the expected structure
+        assert!(cards_data.get("cards").is_some(), "cards.json should have a 'cards' array");
+        
+        let cards_array = cards_data.get("cards")
+            .and_then(|v| v.as_array())
+            .expect("cards should be an array");
+        
+        assert!(!cards_array.is_empty(), "cards array should not be empty");
+        
+        // Verify at least one card has required fields
+        let first_card = cards_array[0].as_object().expect("card should be an object");
+        assert!(first_card.get("name").is_some(), "card should have a 'name' field");
+    }
+
+    #[test]
+    fn test_cards_seeded_from_json() {
+        // Create in-memory database
+        let conn = Connection::open_in_memory().unwrap();
+        
+        // Run migrations first
+        migrations::run_migrations(&conn).unwrap();
+        
+        // Create database instance with this connection using test-only constructor
+        let db = Database::from_connection(conn);
+        
+        // Seed cards
+        db.seed_cards_from_json().unwrap();
+        
+        // Verify cards were seeded
+        let conn = db.get_connection();
+        let count: i64 = conn.query_row("SELECT COUNT(*) FROM cards", [], |row| row.get(0)).unwrap();
+        drop(conn);
+        
+        assert!(count > 0, "Cards should be seeded from JSON");
+        
+        // Verify specific card exists (e.g., "Delivery Driver" from cards.json)
+        let conn = db.get_connection();
+        let exists: i64 = conn.query_row(
+            "SELECT COUNT(*) FROM cards WHERE name = ?1",
+            params!["Delivery Driver"],
+            |row| row.get(0)
+        ).unwrap();
+        drop(conn);
+        
+        assert_eq!(exists, 1, "Delivery Driver card should exist");
+    }
 }
