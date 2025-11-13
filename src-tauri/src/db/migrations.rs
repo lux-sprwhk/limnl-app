@@ -4,6 +4,7 @@ use rusqlite::{Connection, Result as SqlResult, params};
 /// Add new migrations to the end of this array
 const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/001_initial.sql"),
+    include_str!("../../migrations/002_add_dream_metadata.sql"),
 ];
 
 /// Get the current schema version from the database

@@ -10,6 +10,9 @@ pub struct Dream {
     pub content: String,
     pub emotions_tags: Option<String>, // JSON string of tags
     pub sleep_quality: Option<i32>,    // 1-5 scale
+    pub is_recurring: Option<bool>,    // Whether this dream has occurred before
+    pub last_occurrence_period: Option<String>, // When it last occurred (e.g., "last_week")
+    pub is_lucid: Option<bool>,        // Whether dreamer was aware they were dreaming
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -21,6 +24,9 @@ pub struct CreateDreamInput {
     pub content: String,
     pub emotions_tags: Option<String>,
     pub sleep_quality: Option<i32>,
+    pub is_recurring: Option<bool>,
+    pub last_occurrence_period: Option<String>,
+    pub is_lucid: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +37,9 @@ pub struct UpdateDreamInput {
     pub content: Option<String>,
     pub emotions_tags: Option<String>,
     pub sleep_quality: Option<i32>,
+    pub is_recurring: Option<bool>,
+    pub last_occurrence_period: Option<String>,
+    pub is_lucid: Option<bool>,
 }
 
 // Dream analysis models

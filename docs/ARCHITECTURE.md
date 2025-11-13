@@ -36,7 +36,9 @@ Limnl is built as a Tauri desktop application with a clear separation between:
 - **Dream Analysis** (3): `dream_analyses`, `dream_analysis_cards`, `dream_creative_prompts`
 - **Relationships** (1): `bug_cards`
 
-All tables below are created in migration `001_initial.sql`.
+**Migration History**:
+- Migration 001: Core tables (dreams, bugs, mind_dumps, cards, dream analysis, relationships)
+- Migration 002: Added dream metadata fields (is_recurring, last_occurrence_period, is_lucid)
 
 ```sql
 -- Dream journal entries
@@ -48,11 +50,11 @@ CREATE TABLE dreams (
     content TEXT NOT NULL,
     emotions_tags TEXT,               -- Future: JSON array of emotion tags
     sleep_quality INTEGER,            -- 1-5 rating (optional)
+    is_recurring INTEGER DEFAULT 0,   -- Whether this dream has occurred before (0=false, 1=true)
+    last_occurrence_period TEXT,      -- When it last occurred (e.g., "last_week", "months_ago")
+    is_lucid INTEGER DEFAULT 0,       -- Whether dreamer was aware they were dreaming
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
-
-    -- Note: is_recurring, last_occurrence_period, is_lucid exist in frontend types
-    -- but are not yet implemented in the database schema (planned for future migration)
 );
 
 -- AI-powered dream analysis (cached results)
@@ -706,7 +708,7 @@ All commands are defined in `src-tauri/src/commands.rs` and registered in `src-t
 **System Metrics**:
 - **Total Tauri Commands**: 40
 - **Database Tables**: 8 (managed via migrations)
-- **Migration Version**: 1 (001_initial.sql)
+- **Migration Version**: 2 (002_add_dream_metadata.sql)
 - **Frontend Routes**: 15+ pages (SvelteKit file-based routing)
 - **LLM Providers Supported**: 4 (Ollama, OpenAI, Anthropic, Disabled)
 - **Storage**: Local SQLite (no cloud sync)

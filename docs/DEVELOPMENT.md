@@ -164,6 +164,10 @@ Example:
 2. **Create a new dream**:
    - Click "New Dream" button
    - Fill in form (Date, Title, Content, Sleep Quality)
+   - **Optional metadata** (added in v0.2):
+     - Mark as recurring dream (checkbox)
+     - If recurring, select when it last occurred (dropdown: today, yesterday, last week, etc.)
+     - Mark as lucid dream (checkbox for dreams where you were aware you were dreaming)
    - Optionally click "Generate" next to title (requires LLM)
    - Click "Save Dream"
 3. **Search dreams**: Use search box to filter by keywords
@@ -245,17 +249,17 @@ Located in `src-tauri/migrations/`:
 
 ```
 src-tauri/migrations/
-├── 001_initial.sql          # Base schema (8 tables)
-├── 002_example.sql.example  # Template for new migrations
-└── README.md                # Comprehensive migration documentation
+├── 001_initial.sql              # Base schema (8 tables)
+├── 002_add_dream_metadata.sql   # Dream metadata fields (recurring, lucid)
+├── 002_example.sql.example      # Template for new migrations
+└── README.md                    # Comprehensive migration documentation
 ```
 
-**Current Schema Version**: 1 (as of migration 001)
+**Current Schema Version**: 2
 
-**Tables Added in Migration 001** (8 total):
-- Core tables: `dreams`, `bugs`, `mind_dumps`, `cards`
-- Dream analysis: `dream_analyses`, `dream_analysis_cards`, `dream_creative_prompts`
-- Relationships: `bug_cards`
+**Migration History**:
+- **Migration 001**: Core tables (dreams, bugs, mind_dumps, cards, dream analysis, relationships)
+- **Migration 002**: Dream metadata (is_recurring, last_occurrence_period, is_lucid)
 
 ### Checking Migration Status
 

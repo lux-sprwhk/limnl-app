@@ -9,8 +9,8 @@ impl Database {
         let now = Utc::now();
 
         conn.execute(
-            "INSERT INTO dreams (date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            "INSERT INTO dreams (date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, is_recurring, last_occurrence_period, is_lucid, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 now.to_rfc3339(),
                 input.date_occurred.to_rfc3339(),
@@ -18,6 +18,9 @@ impl Database {
                 input.content,
                 input.emotions_tags,
                 input.sleep_quality,
+                input.is_recurring,
+                input.last_occurrence_period,
+                input.is_lucid,
                 now.to_rfc3339(),
                 now.to_rfc3339(),
             ],
@@ -33,6 +36,9 @@ impl Database {
             content: input.content,
             emotions_tags: input.emotions_tags,
             sleep_quality: input.sleep_quality,
+            is_recurring: input.is_recurring,
+            last_occurrence_period: input.last_occurrence_period,
+            is_lucid: input.is_lucid,
             created_at: now,
             updated_at: now,
         })
@@ -42,7 +48,7 @@ impl Database {
         let conn = self.get_connection();
 
         let mut stmt = conn.prepare(
-            "SELECT id, date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, created_at, updated_at
+            "SELECT id, date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, is_recurring, last_occurrence_period, is_lucid, created_at, updated_at
              FROM dreams WHERE id = ?1",
         )?;
 
@@ -55,8 +61,11 @@ impl Database {
                 content: row.get(4)?,
                 emotions_tags: row.get(5)?,
                 sleep_quality: row.get(6)?,
-                created_at: row.get::<_, String>(7)?.parse().unwrap(),
-                updated_at: row.get::<_, String>(8)?.parse().unwrap(),
+                is_recurring: row.get::<_, Option<i32>>(7)?.map(|v| v != 0),
+                last_occurrence_period: row.get(8)?,
+                is_lucid: row.get::<_, Option<i32>>(9)?.map(|v| v != 0),
+                created_at: row.get::<_, String>(10)?.parse().unwrap(),
+                updated_at: row.get::<_, String>(11)?.parse().unwrap(),
             })
         });
 
@@ -71,7 +80,7 @@ impl Database {
         let conn = self.get_connection();
 
         let query = format!(
-            "SELECT id, date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, created_at, updated_at
+            "SELECT id, date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, is_recurring, last_occurrence_period, is_lucid, created_at, updated_at
              FROM dreams
              ORDER BY date_occurred DESC
              LIMIT {} OFFSET {}",
@@ -91,8 +100,11 @@ impl Database {
                     content: row.get(4)?,
                     emotions_tags: row.get(5)?,
                     sleep_quality: row.get(6)?,
-                    created_at: row.get::<_, String>(7)?.parse().unwrap(),
-                    updated_at: row.get::<_, String>(8)?.parse().unwrap(),
+                    is_recurring: row.get::<_, Option<i32>>(7)?.map(|v| v != 0),
+                    last_occurrence_period: row.get(8)?,
+                    is_lucid: row.get::<_, Option<i32>>(9)?.map(|v| v != 0),
+                    created_at: row.get::<_, String>(10)?.parse().unwrap(),
+                    updated_at: row.get::<_, String>(11)?.parse().unwrap(),
                 })
             })?
             .collect::<SqlResult<Vec<Dream>>>()?;
@@ -128,19 +140,31 @@ impl Database {
         if let Some(sleep_quality) = input.sleep_quality {
             existing.sleep_quality = Some(sleep_quality);
         }
+        if let Some(is_recurring) = input.is_recurring {
+            existing.is_recurring = Some(is_recurring);
+        }
+        if let Some(last_occurrence_period) = input.last_occurrence_period {
+            existing.last_occurrence_period = Some(last_occurrence_period);
+        }
+        if let Some(is_lucid) = input.is_lucid {
+            existing.is_lucid = Some(is_lucid);
+        }
 
         existing.updated_at = now;
 
         conn.execute(
             "UPDATE dreams
-             SET date_occurred = ?1, title = ?2, content = ?3, emotions_tags = ?4, sleep_quality = ?5, updated_at = ?6
-             WHERE id = ?7",
+             SET date_occurred = ?1, title = ?2, content = ?3, emotions_tags = ?4, sleep_quality = ?5, is_recurring = ?6, last_occurrence_period = ?7, is_lucid = ?8, updated_at = ?9
+             WHERE id = ?10",
             params![
                 existing.date_occurred.to_rfc3339(),
                 existing.title,
                 existing.content,
                 existing.emotions_tags,
                 existing.sleep_quality,
+                existing.is_recurring,
+                existing.last_occurrence_period,
+                existing.is_lucid,
                 existing.updated_at.to_rfc3339(),
                 input.id,
             ],
@@ -163,7 +187,7 @@ impl Database {
         let search_pattern = format!("%{}%", query);
 
         let mut stmt = conn.prepare(
-            "SELECT id, date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, created_at, updated_at
+            "SELECT id, date_recorded, date_occurred, title, content, emotions_tags, sleep_quality, is_recurring, last_occurrence_period, is_lucid, created_at, updated_at
              FROM dreams
              WHERE title LIKE ?1 OR content LIKE ?1
              ORDER BY date_occurred DESC",
@@ -179,8 +203,11 @@ impl Database {
                     content: row.get(4)?,
                     emotions_tags: row.get(5)?,
                     sleep_quality: row.get(6)?,
-                    created_at: row.get::<_, String>(7)?.parse().unwrap(),
-                    updated_at: row.get::<_, String>(8)?.parse().unwrap(),
+                    is_recurring: row.get::<_, Option<i32>>(7)?.map(|v| v != 0),
+                    last_occurrence_period: row.get(8)?,
+                    is_lucid: row.get::<_, Option<i32>>(9)?.map(|v| v != 0),
+                    created_at: row.get::<_, String>(10)?.parse().unwrap(),
+                    updated_at: row.get::<_, String>(11)?.parse().unwrap(),
                 })
             })?
             .collect::<SqlResult<Vec<Dream>>>()?;
