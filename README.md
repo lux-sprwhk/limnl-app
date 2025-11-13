@@ -1,6 +1,24 @@
 # Limnl Space
 
-A desktop application built with Tauri and SvelteKit. This project is still in active development, and I'm not entirely sure what it will become yet. It's an exploration of personal tools, reflection, and insights.
+A privacy-first desktop application for personal reflection and insights. Built with Tauri and SvelteKit, this project is actively evolving as an exploration of personal tools and journaling.
+
+## Quick Start
+
+For detailed instructions, see:
+
+- [Development Guide](docs/DEVELOPMENT.md) - Setup, installation, and testing
+- [Architecture](docs/ARCHITECTURE.md) - System design and database schema
+
+```bash
+# Quick setup
+pnpm install
+pnpm tauri:dev
+```
+
+## Documentation
+
+- [Development Guide](docs/DEVELOPMENT.md) - Setup and contribution guide
+- [Architecture](docs/ARCHITECTURE.md) - Technical architecture and design
 
 ## Tech Stack
 

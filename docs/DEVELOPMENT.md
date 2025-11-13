@@ -1,5 +1,17 @@
 # Development Guide
 
+← [Back to README](../README.md)
+
+## Table of Contents
+
+- [Getting Started](#getting-started)
+- [Available Scripts](#available-scripts)
+- [Styling with Panda CSS](#styling-with-panda-css)
+- [Components](#components)
+- [Testing the Application](#testing-the-application)
+- [Troubleshooting](#troubleshooting)
+- [Learn More](#learn-more)
+
 ## Getting Started
 
 ### Prerequisites

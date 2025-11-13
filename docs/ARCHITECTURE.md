@@ -1,5 +1,17 @@
 # System Architecture
 
+← [Back to README](../README.md)
+
+> Overview of the Limnl application architecture, including data flow, database schema, and project structure.
+
+## Overview
+
+Limnl is built as a Tauri desktop application with a clear separation between:
+
+- **Frontend**: SvelteKit-based UI with client-side routing
+- **Backend**: Rust-based Tauri commands for database operations
+- **Storage**: Local SQLite database with privacy-first design
+
 ## Data Flow
 
 1. User interacts with Svelte component
@@ -178,4 +190,3 @@ limnl-app/
 ├── static/                      # Static assets
 └── cards.json                   # Card deck definitions
 ```
-
