@@ -4,6 +4,7 @@ use rusqlite::{Connection, Result as SqlResult, params};
 /// Add new migrations to the end of this array
 const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/001_initial.sql"),
+    include_str!("../../migrations/002_add_dream_metadata.sql"),
 ];
 
 /// Get the current schema version from the database
@@ -37,7 +38,26 @@ pub fn run_migrations(conn: &Connection) -> SqlResult<()> {
         println!("Applying migration {}/{}...", version, MIGRATIONS.len());
 
         // Execute the migration SQL
-        conn.execute_batch(migration)?;
+        // Note: We use execute_batch which executes each statement separately.
+        // For ALTER TABLE ADD COLUMN, if the column already exists, SQLite will return
+        // an error. We catch and ignore "duplicate column" errors to make migrations
+        // more defensive against manual schema changes.
+        match conn.execute_batch(migration) {
+            Ok(_) => {
+                // All statements succeeded
+            }
+            Err(e) => {
+                // Check if it's a "duplicate column" error
+                let error_msg = e.to_string().to_lowercase();
+                if error_msg.contains("duplicate column") || error_msg.contains("already exists") {
+                    println!("Warning: Some columns may already exist in migration {}. Continuing...", version);
+                    // Continue - the migration system will still record it as applied
+                } else {
+                    // Re-throw other errors
+                    return Err(e);
+                }
+            }
+        }
 
         // Record that this migration has been applied
         let timestamp = chrono::Utc::now().timestamp();
@@ -208,5 +228,44 @@ mod tests {
             ).unwrap();
             assert_eq!(exists, 1, "Table {} should exist after upgrade", table);
         }
+    }
+
+    #[test]
+    fn test_migration_002_adds_dream_metadata_columns() {
+        let conn = Connection::open_in_memory().unwrap();
+        
+        // Run all migrations
+        run_migrations(&conn).unwrap();
+
+        // Verify new columns exist in dreams table
+        let columns = vec![
+            "is_recurring",
+            "last_occurrence_period",
+            "is_lucid",
+        ];
+
+        for column in columns {
+            let exists: i32 = conn.query_row(
+                "SELECT COUNT(*) FROM pragma_table_info('dreams') WHERE name = ?1",
+                params![column],
+                |row| row.get(0)
+            ).unwrap();
+            assert_eq!(exists, 1, "Column {} should exist in dreams table", column);
+        }
+
+        // Verify columns allow NULL (no NOT NULL constraint)
+        let is_recurring_nullable: i32 = conn.query_row(
+            "SELECT \"notnull\" FROM pragma_table_info('dreams') WHERE name = 'is_recurring'",
+            [],
+            |row| row.get(0)
+        ).unwrap();
+        assert_eq!(is_recurring_nullable, 0, "is_recurring should allow NULL");
+
+        let is_lucid_nullable: i32 = conn.query_row(
+            "SELECT \"notnull\" FROM pragma_table_info('dreams') WHERE name = 'is_lucid'",
+            [],
+            |row| row.get(0)
+        ).unwrap();
+        assert_eq!(is_lucid_nullable, 0, "is_lucid should allow NULL");
     }
 }

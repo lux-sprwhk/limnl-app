@@ -53,7 +53,6 @@ pub async fn optimize_description(content: &str, config: &LLMConfig) -> Result<S
     }
 }
 
-#[allow(dead_code)]
 pub async fn comment_on_card(
     card_name: &str,
     card_question: &str,
@@ -69,7 +68,6 @@ pub async fn comment_on_card(
     }
 }
 
-#[allow(dead_code)]
 pub async fn comment_on_multiple_cards(
     cards: &[Value],
     life_area: &str,
@@ -383,6 +381,9 @@ async fn optimize_description_anthropic(content: &str, config: &LLMConfig) -> Re
         .ok_or_else(|| "Invalid Anthropic response format".to_string())
 }
 
+// Private implementation functions - these are called through match statements
+// in public functions, so the compiler may not detect their usage. They are
+// definitely used, so we allow dead_code warnings.
 #[allow(dead_code)]
 async fn comment_on_card_ollama(
     card_name: &str,
@@ -1306,7 +1307,7 @@ async fn comment_on_multiple_cards_with_context_anthropic(
 
 // Helper to extract just card names and core meanings from cards.json
 fn extract_card_summaries() -> Result<String, String> {
-    let cards_json = include_str!("../../cards.json");
+    let cards_json = include_str!("../../../src/cards.json");
     let cards_data: Value = serde_json::from_str(cards_json)
         .map_err(|e| format!("Failed to parse cards.json: {}", e))?;
 
