@@ -1,7 +1,8 @@
 use crate::db::{models::*, Database};
 use crate::llm::{
     client, GenerateTitleRequest, GenerateTitleResponse, OptimizeDescriptionRequest,
-    OptimizeDescriptionResponse, CardCommentaryResponse,
+    OptimizeDescriptionResponse, CardCommentaryResponse, GenerateDreamAnalysisRequest,
+    GenerateCreativePromptsRequest,
 };
 use tauri::State;
 use std::path::PathBuf;
@@ -69,6 +70,104 @@ pub async fn optimize_dream_description(
 ) -> Result<OptimizeDescriptionResponse, String> {
     let optimized = client::optimize_description(&request.content, &request.config).await?;
     Ok(OptimizeDescriptionResponse { optimized })
+}
+
+// Dream analysis commands
+#[tauri::command]
+pub async fn generate_dream_analysis(
+    db: State<'_, Database>,
+    request: GenerateDreamAnalysisRequest,
+) -> Result<DreamAnalysisWithCards, String> {
+    // Call LLM to generate analysis
+    let llm_response = client::generate_dream_analysis(
+        &request.dream_title,
+        &request.dream_content,
+        request.sleep_quality,
+        &request.config
+    ).await?;
+
+    // Create the analysis in the database
+    let analysis_input = CreateDreamAnalysisInput {
+        dream_id: request.dream_id,
+        themes_patterns: llm_response.themes_patterns.clone(),
+        emotional_analysis: llm_response.emotional_analysis.clone(),
+        narrative_summary: llm_response.narrative_summary.clone(),
+    };
+
+    let analysis = db.create_dream_analysis(analysis_input)
+        .map_err(|e| e.to_string())?;
+
+    let analysis_id = analysis.id.ok_or("Analysis ID not found")?;
+
+    // Link the identified cards to the analysis
+    for symbol_card in &llm_response.symbol_cards {
+        // Get the card by name
+        let card = db.get_card_by_name(&symbol_card.card_name)
+            .map_err(|e| e.to_string())?
+            .ok_or(format!("Card '{}' not found", symbol_card.card_name))?;
+
+        // Link the card to the analysis
+        db.link_card_to_dream_analysis(
+            analysis_id,
+            card.id.ok_or("Card ID not found")?,
+            Some(symbol_card.relevance_note.clone())
+        ).map_err(|e| e.to_string())?;
+    }
+
+    // Return the complete analysis with cards
+    db.get_dream_analysis_with_cards(analysis.dream_id)
+        .map_err(|e| e.to_string())?
+        .ok_or("Failed to retrieve analysis with cards".to_string())
+}
+
+#[tauri::command]
+pub fn get_dream_analysis_with_cards(
+    db: State<Database>,
+    dream_id: i64,
+) -> Result<Option<DreamAnalysisWithCards>, String> {
+    db.get_dream_analysis_with_cards(dream_id).map_err(|e| e.to_string())
+}
+
+// Dream creative prompts commands
+#[tauri::command]
+pub async fn generate_dream_creative_prompts(
+    db: State<'_, Database>,
+    request: GenerateCreativePromptsRequest,
+) -> Result<DreamCreativePrompts, String> {
+    // Call LLM to generate creative prompts
+    let llm_response = client::generate_creative_prompts(
+        &request.themes_patterns,
+        &request.emotional_analysis,
+        &request.narrative_summary,
+        &request.config
+    ).await?;
+
+    // Convert arrays to JSON strings
+    let image_prompts_json = serde_json::to_string(&llm_response.image_prompts)
+        .map_err(|e| format!("Failed to serialize image prompts: {}", e))?;
+    let music_prompts_json = serde_json::to_string(&llm_response.music_prompts)
+        .map_err(|e| format!("Failed to serialize music prompts: {}", e))?;
+    let story_prompts_json = serde_json::to_string(&llm_response.story_prompts)
+        .map_err(|e| format!("Failed to serialize story prompts: {}", e))?;
+
+    // Create the creative prompts in the database
+    let prompts_input = CreateDreamCreativePromptsInput {
+        dream_analysis_id: request.dream_analysis_id,
+        image_prompts: image_prompts_json,
+        music_prompts: music_prompts_json,
+        story_prompts: story_prompts_json,
+    };
+
+    db.create_dream_creative_prompts(prompts_input)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_dream_creative_prompts(
+    db: State<Database>,
+    dream_analysis_id: i64,
+) -> Result<Option<DreamCreativePrompts>, String> {
+    db.get_dream_creative_prompts(dream_analysis_id).map_err(|e| e.to_string())
 }
 
 // Bug tracking commands

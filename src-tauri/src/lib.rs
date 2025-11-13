@@ -1,8 +1,8 @@
 use tauri::Manager;
 
-mod db;
+pub mod db;
 mod commands;
-mod llm;
+pub mod llm;
 
 use db::Database;
 
@@ -26,6 +26,10 @@ pub fn run() {
             commands::search_dreams,
             commands::generate_dream_title,
             commands::optimize_dream_description,
+            commands::generate_dream_analysis,
+            commands::get_dream_analysis_with_cards,
+            commands::generate_dream_creative_prompts,
+            commands::get_dream_creative_prompts,
             commands::create_bug,
             commands::get_bug,
             commands::list_bugs,

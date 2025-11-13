@@ -2,9 +2,10 @@
 	import { onMount } from 'svelte';
 	import { css } from '../../../../styled-system/css';
 	import { dreamsApi } from '$lib/api/dreams';
-	import type { Dream } from '$lib/types/dream';
+	import type { Dream, DreamAnalysisWithCards, DreamCreativePromptsData } from '$lib/types/dream';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Edit, Trash2, Calendar, Moon } from 'lucide-svelte';
+	import { ArrowLeft, Edit, Trash2, Calendar, Moon, Sparkles, Palette, Music, BookOpen, Copy, Check } from 'lucide-svelte';
+	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 
 	let { data } = $props();
 	const id = data.id;
@@ -12,9 +13,19 @@
 	let dream = $state<Dream | null>(null);
 	let loading = $state(true);
 	let deleting = $state(false);
+	let activeTab = $state<'overview' | 'analysis' | 'creative'>('overview');
+	let analysis = $state<DreamAnalysisWithCards | null>(null);
+	let analysisLoading = $state(false);
+	let analysisError = $state<string | null>(null);
+	let creativePrompts = $state<DreamCreativePromptsData | null>(null);
+	let creativePromptsLoading = $state(false);
+	let creativePromptsError = $state<string | null>(null);
+	let copiedPromptIndex = $state<string | null>(null);
 
 	onMount(async () => {
 		await loadDream();
+		await loadAnalysis();
+		await loadCreativePrompts();
 	});
 
 	async function loadDream() {
@@ -26,6 +37,103 @@
 			console.error('Failed to load dream:', error);
 		} finally {
 			loading = false;
+		}
+	}
+
+	async function loadAnalysis() {
+		if (!llmSettings.isConfigured) return;
+
+		try {
+			analysisLoading = true;
+			analysisError = null;
+			const dreamId = parseInt(id);
+			analysis = await dreamsApi.getAnalysisWithCards(dreamId);
+
+			// Auto-generate analysis if it doesn't exist
+			if (!analysis && dream) {
+				await generateAnalysis();
+			}
+		} catch (error) {
+			console.error('Failed to load analysis:', error);
+			analysisError = 'Failed to load analysis';
+		} finally {
+			analysisLoading = false;
+		}
+	}
+
+	async function loadCreativePrompts() {
+		if (!llmSettings.isConfigured || !analysis) return;
+
+		try {
+			creativePromptsLoading = true;
+			creativePromptsError = null;
+			const analysisId = analysis.analysis.id;
+			if (analysisId) {
+				creativePrompts = await dreamsApi.getCreativePrompts(analysisId);
+			}
+		} catch (error) {
+			console.error('Failed to load creative prompts:', error);
+			creativePromptsError = 'Failed to load creative prompts';
+		} finally {
+			creativePromptsLoading = false;
+		}
+	}
+
+	async function generateAnalysis() {
+		if (!dream || !llmSettings.isConfigured) return;
+
+		try {
+			analysisLoading = true;
+			analysisError = null;
+			const dreamId = parseInt(id);
+
+			analysis = await dreamsApi.generateAnalysis({
+				dream_id: dreamId,
+				dream_title: dream.title,
+				dream_content: dream.content,
+				sleep_quality: dream.sleep_quality,
+				config: llmSettings.config
+			});
+
+			// After generating analysis, automatically generate creative prompts
+			await generateCreativePrompts();
+		} catch (error) {
+			console.error('Failed to generate analysis:', error);
+			analysisError =
+				error instanceof Error ? error.message : 'Failed to generate analysis. Please try again.';
+		} finally {
+			analysisLoading = false;
+		}
+	}
+
+	async function generateCreativePrompts() {
+		if (!analysis || !llmSettings.isConfigured) return;
+
+		try {
+			creativePromptsLoading = true;
+			creativePromptsError = null;
+
+			const analysisId = analysis.analysis.id;
+			if (!analysisId) {
+				throw new Error('Analysis ID not found');
+			}
+
+			await dreamsApi.generateCreativePrompts({
+				dream_analysis_id: analysisId,
+				themes_patterns: analysis.analysis.themes_patterns,
+				emotional_analysis: analysis.analysis.emotional_analysis,
+				narrative_summary: analysis.analysis.narrative_summary,
+				config: llmSettings.config
+			});
+
+			// Load the newly generated prompts
+			await loadCreativePrompts();
+		} catch (error) {
+			console.error('Failed to generate creative prompts:', error);
+			creativePromptsError =
+				error instanceof Error ? error.message : 'Failed to generate creative prompts. Please try again.';
+		} finally {
+			creativePromptsLoading = false;
 		}
 	}
 
@@ -66,6 +174,171 @@
 			minute: '2-digit'
 		});
 	}
+
+	const tabsContainerStyles = css({
+		display: 'flex',
+		gap: '0.5rem',
+		marginBottom: '1.5rem',
+		borderBottom: '1px solid',
+		borderColor: 'border.liminal'
+	});
+
+	const tabButtonStyles = css({
+		padding: '0.75rem 1rem',
+		fontSize: 'sm',
+		fontWeight: 'medium',
+		color: 'text.secondary',
+		backgroundColor: 'transparent',
+		border: 'none',
+		borderBottom: '2px solid transparent',
+		cursor: 'pointer',
+		transition: 'all 0.2s',
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.5rem',
+		'&:hover': {
+			color: 'text.primary',
+			backgroundColor: 'void.800'
+		}
+	});
+
+	const tabButtonActiveStyles = css({
+		color: 'breakthrough.400',
+		borderBottomColor: 'breakthrough.400'
+	});
+
+	const analysisSectionStyles = css({
+		marginBottom: '2rem'
+	});
+
+	const analysisTitleStyles = css({
+		fontSize: 'lg',
+		fontWeight: 'semibold',
+		color: 'breakthrough.300',
+		marginBottom: '0.75rem',
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.5rem'
+	});
+
+	const analysisTextStyles = css({
+		fontSize: 'md',
+		lineHeight: '1.7',
+		color: 'text.primary',
+		marginBottom: '1rem'
+	});
+
+	const cardsGridStyles = css({
+		display: 'grid',
+		gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+		gap: '1rem',
+		marginTop: '1rem'
+	});
+
+	const cardItemStyles = css({
+		padding: '1rem',
+		backgroundColor: 'void.800',
+		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		transition: 'all 0.2s',
+		'&:hover': {
+			borderColor: 'breakthrough.500',
+			boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+		}
+	});
+
+	const cardNameStyles = css({
+		fontSize: 'md',
+		fontWeight: 'semibold',
+		color: 'breakthrough.300',
+		marginBottom: '0.5rem'
+	});
+
+	const cardRelevanceStyles = css({
+		fontSize: 'sm',
+		lineHeight: '1.6',
+		color: 'text.secondary'
+	});
+
+	const promptSectionStyles = css({
+		marginBottom: '2rem'
+	});
+
+	const promptSectionTitleStyles = css({
+		fontSize: 'lg',
+		fontWeight: 'semibold',
+		color: 'breakthrough.300',
+		marginBottom: '1rem',
+		display: 'flex',
+		alignItems: 'center',
+		gap: '0.5rem'
+	});
+
+	const promptListStyles = css({
+		display: 'flex',
+		flexDirection: 'column',
+		gap: '0.75rem'
+	});
+
+	const promptItemStyles = css({
+		padding: '1rem',
+		backgroundColor: 'void.800',
+		borderRadius: 'md',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		fontSize: 'md',
+		lineHeight: '1.6',
+		color: 'text.primary',
+		transition: 'all 0.2s',
+		display: 'flex',
+		alignItems: 'flex-start',
+		justifyContent: 'space-between',
+		gap: '1rem',
+		'&:hover': {
+			borderColor: 'breakthrough.500',
+			backgroundColor: 'void.700'
+		}
+	});
+
+	const promptTextStyles = css({
+		flex: '1'
+	});
+
+	const copyButtonStyles = css({
+		padding: '0.5rem',
+		backgroundColor: 'transparent',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		borderRadius: 'md',
+		color: 'text.secondary',
+		cursor: 'pointer',
+		transition: 'all 0.2s',
+		flexShrink: '0',
+		display: 'flex',
+		alignItems: 'center',
+		justifyContent: 'center',
+		'&:hover': {
+			borderColor: 'breakthrough.500',
+			backgroundColor: 'void.700',
+			color: 'breakthrough.400'
+		},
+		'&:active': {
+			transform: 'scale(0.95)'
+		}
+	});
+
+	const copiedButtonStyles = css({
+		borderColor: 'green.500',
+		backgroundColor: 'green.900',
+		color: 'green.400'
+	});
+
+	const emptyStateStyles = css({
+		textAlign: 'center',
+		padding: '3rem 1rem',
+		color: 'text.muted'
+	});
 
 	const containerStyles = css({
 		minHeight: '100vh',
@@ -203,6 +476,18 @@
 		const labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 		return labels[quality - 1] || 'Unknown';
 	}
+
+	async function copyToClipboard(text: string, promptId: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			copiedPromptIndex = promptId;
+			setTimeout(() => {
+				copiedPromptIndex = null;
+			}, 2000);
+		} catch (error) {
+			console.error('Failed to copy to clipboard:', error);
+		}
+	}
 </script>
 
 <div class={containerStyles}>
@@ -243,6 +528,33 @@
 				</div>
 			</div>
 
+			<!-- Tabs -->
+			<div class={tabsContainerStyles}>
+				<button
+					class={`${tabButtonStyles} ${activeTab === 'overview' ? tabButtonActiveStyles : ''}`}
+					onclick={() => (activeTab = 'overview')}
+				>
+					<Moon size={16} />
+					Overview
+				</button>
+				<button
+					class={`${tabButtonStyles} ${activeTab === 'analysis' ? tabButtonActiveStyles : ''}`}
+					onclick={() => (activeTab = 'analysis')}
+				>
+					<Sparkles size={16} />
+					Analysis
+				</button>
+				<button
+					class={`${tabButtonStyles} ${activeTab === 'creative' ? tabButtonActiveStyles : ''}`}
+					onclick={() => (activeTab = 'creative')}
+				>
+					<Palette size={16} />
+					Creative
+				</button>
+			</div>
+
+			<!-- Overview Tab -->
+			{#if activeTab === 'overview'}
 			<div class={metaContainerStyles}>
 				<div class={metaItemStyles}>
 					<Calendar size={16} />
@@ -271,6 +583,249 @@
 					<div>Last edited: {formatDateTime(dream.updated_at)}</div>
 				{/if}
 			</div>
+			{/if}
+
+			<!-- Analysis Tab -->
+			{#if activeTab === 'analysis'}
+				{#if !llmSettings.isConfigured}
+					<div class={emptyStateStyles}>
+						<Sparkles size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							LLM Not Configured
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Configure an LLM provider in Settings to generate dream analysis.
+						</p>
+						<Button variant="primary" onclick={() => (window.location.href = '/settings')}>
+							Go to Settings
+						</Button>
+					</div>
+				{:else if analysisLoading}
+					<div class={emptyStateStyles}>
+						<div class={css({ fontSize: 'lg', color: 'text.secondary' })}>Generating analysis...</div>
+					</div>
+				{:else if analysisError}
+					<div class={emptyStateStyles}>
+						<div class={css({ fontSize: 'md', color: 'red.400', marginBottom: '1rem' })}>
+							{analysisError}
+						</div>
+						<Button variant="primary" onclick={generateAnalysis}>
+							<Sparkles size={16} />
+							Retry Analysis
+						</Button>
+					</div>
+				{:else if !analysis}
+					<div class={emptyStateStyles}>
+						<Sparkles size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							No Analysis Yet
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Generate an AI-powered analysis of this dream including themes, emotions, and symbolic cards.
+						</p>
+						<Button variant="primary" onclick={generateAnalysis}>
+							<Sparkles size={16} />
+							Generate Analysis
+						</Button>
+					</div>
+				{:else}
+					<!-- Themes & Patterns -->
+					<div class={analysisSectionStyles}>
+						<h3 class={analysisTitleStyles}>
+							<Sparkles size={20} />
+							Themes & Patterns
+						</h3>
+						<p class={analysisTextStyles}>{analysis.analysis.themes_patterns}</p>
+					</div>
+
+					<!-- Emotional Analysis -->
+					<div class={analysisSectionStyles}>
+						<h3 class={analysisTitleStyles}>
+							<Moon size={20} />
+							Emotional Analysis
+						</h3>
+						<p class={analysisTextStyles}>{analysis.analysis.emotional_analysis}</p>
+					</div>
+
+					<!-- Narrative Summary -->
+					<div class={analysisSectionStyles}>
+						<h3 class={analysisTitleStyles}>
+							<Calendar size={20} />
+							Narrative Summary
+						</h3>
+						<p class={analysisTextStyles}>{analysis.analysis.narrative_summary}</p>
+					</div>
+
+					<!-- Symbolic Cards -->
+					{#if analysis.cards && analysis.cards.length > 0}
+						<div class={analysisSectionStyles}>
+							<h3 class={analysisTitleStyles}>
+								🎴 Symbolic Cards
+							</h3>
+							<div class={cardsGridStyles}>
+								{#each analysis.cards as card}
+									<div class={cardItemStyles}>
+										<div class={cardNameStyles}>{card.card_name}</div>
+										{#if card.relevance_note}
+											<p class={cardRelevanceStyles}>{card.relevance_note}</p>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					<!-- Regenerate Button -->
+					<div class={css({ marginTop: '2rem', textAlign: 'center' })}>
+						<Button variant="outline" onclick={generateAnalysis} disabled={analysisLoading}>
+							<Sparkles size={16} />
+							Regenerate Analysis
+						</Button>
+					</div>
+				{/if}
+			{/if}
+
+			<!-- Creative Tab -->
+			{#if activeTab === 'creative'}
+				{#if !llmSettings.isConfigured}
+					<div class={emptyStateStyles}>
+						<Palette size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							LLM Not Configured
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Configure an LLM provider in Settings to generate creative prompts.
+						</p>
+						<Button variant="primary" onclick={() => (window.location.href = '/settings')}>
+							Go to Settings
+						</Button>
+					</div>
+				{:else if !analysis}
+					<div class={emptyStateStyles}>
+						<Sparkles size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							Generate Analysis First
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Creative prompts are automatically generated when you create a dream analysis. Switch to the Analysis tab to get started.
+						</p>
+					</div>
+				{:else if creativePromptsLoading}
+					<div class={emptyStateStyles}>
+						<div class={css({ fontSize: 'lg', color: 'text.secondary' })}>Generating creative prompts...</div>
+					</div>
+				{:else if creativePromptsError}
+					<div class={emptyStateStyles}>
+						<div class={css({ fontSize: 'md', color: 'red.400', marginBottom: '1rem' })}>
+							{creativePromptsError}
+						</div>
+						<Button variant="primary" onclick={generateCreativePrompts}>
+							<Sparkles size={16} />
+							Retry Creative Prompts
+						</Button>
+					</div>
+				{:else if !creativePrompts}
+					<div class={emptyStateStyles}>
+						<Palette size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							No Creative Prompts Yet
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Generate AI-powered creative prompts for images, music, and stories inspired by your dream analysis.
+						</p>
+						<Button variant="primary" onclick={generateCreativePrompts}>
+							<Palette size={16} />
+							Generate Creative Prompts
+						</Button>
+					</div>
+				{:else}
+					<!-- Image Prompts Section -->
+					<div class={promptSectionStyles}>
+						<h3 class={promptSectionTitleStyles}>
+							<Palette size={20} />
+							Image Prompts
+						</h3>
+						<div class={promptListStyles}>
+							{#each creativePrompts.image_prompts as prompt, index}
+								<div class={promptItemStyles}>
+									<div class={promptTextStyles}>{prompt}</div>
+									<button
+										class={`${copyButtonStyles} ${copiedPromptIndex === `image-${index}` ? copiedButtonStyles : ''}`}
+										onclick={() => copyToClipboard(prompt, `image-${index}`)}
+										title="Copy to clipboard"
+									>
+										{#if copiedPromptIndex === `image-${index}`}
+											<Check size={18} />
+										{:else}
+											<Copy size={18} />
+										{/if}
+									</button>
+								</div>
+							{/each}
+						</div>
+					</div>
+
+					<!-- Music Prompts Section -->
+					<div class={promptSectionStyles}>
+						<h3 class={promptSectionTitleStyles}>
+							<Music size={20} />
+							Music Prompts
+						</h3>
+						<div class={promptListStyles}>
+							{#each creativePrompts.music_prompts as prompt, index}
+								<div class={promptItemStyles}>
+									<div class={promptTextStyles}>{prompt}</div>
+									<button
+										class={`${copyButtonStyles} ${copiedPromptIndex === `music-${index}` ? copiedButtonStyles : ''}`}
+										onclick={() => copyToClipboard(prompt, `music-${index}`)}
+										title="Copy to clipboard"
+									>
+										{#if copiedPromptIndex === `music-${index}`}
+											<Check size={18} />
+										{:else}
+											<Copy size={18} />
+										{/if}
+									</button>
+								</div>
+							{/each}
+						</div>
+					</div>
+
+					<!-- Story Prompts Section -->
+					<div class={promptSectionStyles}>
+						<h3 class={promptSectionTitleStyles}>
+							<BookOpen size={20} />
+							Story Prompts
+						</h3>
+						<div class={promptListStyles}>
+							{#each creativePrompts.story_prompts as prompt, index}
+								<div class={promptItemStyles}>
+									<div class={promptTextStyles}>{prompt}</div>
+									<button
+										class={`${copyButtonStyles} ${copiedPromptIndex === `story-${index}` ? copiedButtonStyles : ''}`}
+										onclick={() => copyToClipboard(prompt, `story-${index}`)}
+										title="Copy to clipboard"
+									>
+										{#if copiedPromptIndex === `story-${index}`}
+											<Check size={18} />
+										{:else}
+											<Copy size={18} />
+										{/if}
+									</button>
+								</div>
+							{/each}
+						</div>
+					</div>
+
+					<!-- Regenerate Button -->
+					<div class={css({ marginTop: '2rem', textAlign: 'center' })}>
+						<Button variant="outline" onclick={generateCreativePrompts} disabled={creativePromptsLoading}>
+							<Sparkles size={16} />
+							Regenerate Creative Prompts
+						</Button>
+					</div>
+				{/if}
+			{/if}
 		</div>
 	{/if}
 </div>

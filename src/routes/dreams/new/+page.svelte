@@ -85,8 +85,14 @@
 				is_lucid: isLucid
 			};
 
-			await dreamsApi.create(input);
-			window.location.href = '/dreams';
+			const createdDream = await dreamsApi.create(input);
+
+			// Redirect to the dream detail page where auto-analysis will be triggered
+			if (createdDream.id) {
+				window.location.href = `/dreams/${createdDream.id}`;
+			} else {
+				window.location.href = '/dreams';
+			}
 		} catch (err) {
 			console.error('Failed to create dream:', err);
 			error = 'Failed to save dream. Please try again.';

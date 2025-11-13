@@ -63,6 +63,70 @@ impl Database {
             [],
         )?;
 
+        // Create dream_analyses table for cached analysis results
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS dream_analyses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                dream_id INTEGER NOT NULL UNIQUE,
+                themes_patterns TEXT NOT NULL,
+                emotional_analysis TEXT NOT NULL,
+                narrative_summary TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (dream_id) REFERENCES dreams(id) ON DELETE CASCADE
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dream_analyses_dream_id ON dream_analyses(dream_id)",
+            [],
+        )?;
+
+        // Create dream_analysis_cards junction table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS dream_analysis_cards (
+                dream_analysis_id INTEGER NOT NULL,
+                card_id INTEGER NOT NULL,
+                relevance_note TEXT,
+                created_at TEXT NOT NULL,
+                PRIMARY KEY (dream_analysis_id, card_id),
+                FOREIGN KEY (dream_analysis_id) REFERENCES dream_analyses(id) ON DELETE CASCADE,
+                FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dream_analysis_cards_analysis_id ON dream_analysis_cards(dream_analysis_id)",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dream_analysis_cards_card_id ON dream_analysis_cards(card_id)",
+            [],
+        )?;
+
+        // Create dream_creative_prompts table for AI-generated creative prompts
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS dream_creative_prompts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                dream_analysis_id INTEGER NOT NULL UNIQUE,
+                image_prompts TEXT NOT NULL,
+                music_prompts TEXT NOT NULL,
+                story_prompts TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY (dream_analysis_id) REFERENCES dream_analyses(id) ON DELETE CASCADE
+            )",
+            [],
+        )?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_dream_creative_prompts_analysis_id ON dream_creative_prompts(dream_analysis_id)",
+            [],
+        )?;
+
         // Create bugs table
         conn.execute(
             "CREATE TABLE IF NOT EXISTS bugs (

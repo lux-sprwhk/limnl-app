@@ -33,6 +33,61 @@ pub struct UpdateDreamInput {
     pub sleep_quality: Option<i32>,
 }
 
+// Dream analysis models
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamAnalysis {
+    pub id: Option<i64>,
+    pub dream_id: i64,
+    pub themes_patterns: String,
+    pub emotional_analysis: String,
+    pub narrative_summary: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateDreamAnalysisInput {
+    pub dream_id: i64,
+    pub themes_patterns: String,
+    pub emotional_analysis: String,
+    pub narrative_summary: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamAnalysisCard {
+    pub dream_analysis_id: i64,
+    pub card_id: i64,
+    pub card_name: String,
+    pub relevance_note: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamAnalysisWithCards {
+    pub analysis: DreamAnalysis,
+    pub cards: Vec<DreamAnalysisCard>,
+}
+
+// Dream creative prompts models
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamCreativePrompts {
+    pub id: Option<i64>,
+    pub dream_analysis_id: i64,
+    pub image_prompts: String, // JSON array of image prompts
+    pub music_prompts: String, // JSON array of music prompts
+    pub story_prompts: String, // JSON array of story prompts
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateDreamCreativePromptsInput {
+    pub dream_analysis_id: i64,
+    pub image_prompts: String,
+    pub music_prompts: String,
+    pub story_prompts: String,
+}
+
 // Bug tracking models
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bug {
