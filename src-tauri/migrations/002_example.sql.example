@@ -1,0 +1,33 @@
+-- Example migration file (rename to 002_add_feature.sql to use)
+-- This demonstrates how to add a new migration
+
+-- Example: Add a new table
+CREATE TABLE example_table (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TEXT NOT NULL
+);
+
+-- Example: Add an index
+CREATE INDEX idx_example_name ON example_table(name);
+
+-- Example: Add a column to existing table (if needed)
+-- Note: SQLite ALTER TABLE is limited, see https://www.sqlite.org/lang_altertable.html
+-- ALTER TABLE existing_table ADD COLUMN new_column TEXT;
+
+-- Example: Create a relationship table
+CREATE TABLE example_relationships (
+    parent_id INTEGER NOT NULL,
+    child_id INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (parent_id, child_id),
+    FOREIGN KEY (parent_id) REFERENCES example_table(id) ON DELETE CASCADE,
+    FOREIGN KEY (child_id) REFERENCES example_table(id) ON DELETE CASCADE
+);
+
+-- After creating this file:
+-- 1. Rename it to 002_your_feature_name.sql
+-- 2. Add it to the MIGRATIONS array in src/db/migrations.rs
+-- 3. Run: cargo test db::migrations::tests
+-- 4. Migration will apply automatically on next app start
