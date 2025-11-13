@@ -1,8 +1,8 @@
-use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse};
+use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse, GenerateCreativePromptsResponse};
 use super::prompts::{
     TITLE_GENERATION_PROMPT, DESCRIPTION_OPTIMIZATION_PROMPT, CARD_COMMENTARY_PROMPT,
     CARD_COMMENTARY_WITH_CONTEXT_PROMPT, MULTIPLE_CARDS_COMMENTARY_PROMPT,
-    DISCOVERY_CHAT_SYSTEM_PROMPT, DREAM_ANALYSIS_PROMPT,
+    DISCOVERY_CHAT_SYSTEM_PROMPT, DREAM_ANALYSIS_PROMPT, CREATIVE_PROMPTS_GENERATION,
 };
 use reqwest;
 use serde_json::{json, Value};
@@ -1579,4 +1579,186 @@ async fn generate_dream_analysis_anthropic(
         .map_err(|e| format!("Failed to parse JSON response: {}", e))?;
     eprintln!("Analysis parsed successfully!");
     Ok(result)
+}
+
+// Creative Prompts Generation
+pub async fn generate_creative_prompts(
+    themes_patterns: &str,
+    emotional_analysis: &str,
+    narrative_summary: &str,
+    config: &LLMConfig,
+) -> Result<GenerateCreativePromptsResponse, String> {
+    match config.provider {
+        LLMProvider::Disabled => Err("LLM is disabled".to_string()),
+        LLMProvider::Ollama => generate_creative_prompts_ollama(themes_patterns, emotional_analysis, narrative_summary, config).await,
+        LLMProvider::OpenAI => generate_creative_prompts_openai(themes_patterns, emotional_analysis, narrative_summary, config).await,
+        LLMProvider::Anthropic => generate_creative_prompts_anthropic(themes_patterns, emotional_analysis, narrative_summary, config).await,
+    }
+}
+
+async fn generate_creative_prompts_ollama(
+    themes_patterns: &str,
+    emotional_analysis: &str,
+    narrative_summary: &str,
+    config: &LLMConfig,
+) -> Result<GenerateCreativePromptsResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let url = format!("{}/api/generate", config.ollama_url);
+    let model = map_ollama_model(&config.ollama_model);
+
+    let analysis_summary = format!(
+        "Themes & Patterns:\n{}\n\nEmotional Analysis:\n{}\n\nNarrative Summary:\n{}",
+        themes_patterns, emotional_analysis, narrative_summary
+    );
+
+    let full_prompt = format!("{}\n\n{}", CREATIVE_PROMPTS_GENERATION, analysis_summary);
+
+    let response = client
+        .post(&url)
+        .json(&json!({
+            "model": model,
+            "prompt": full_prompt,
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ollama request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API error: {}", response.status()));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+
+    let response_text = data
+        .get("response")
+        .and_then(|v| v.as_str())
+        .ok_or("Invalid Ollama response format")?;
+
+    // Extract JSON from response
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_creative_prompts_openai(
+    themes_patterns: &str,
+    emotional_analysis: &str,
+    narrative_summary: &str,
+    config: &LLMConfig,
+) -> Result<GenerateCreativePromptsResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let model = map_openai_model(&config.openai_model);
+
+    let analysis_summary = format!(
+        "Themes & Patterns:\n{}\n\nEmotional Analysis:\n{}\n\nNarrative Summary:\n{}",
+        themes_patterns, emotional_analysis, narrative_summary
+    );
+
+    let user_message = format!("{}\n\n{}", CREATIVE_PROMPTS_GENERATION, analysis_summary);
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", config.openai_api_key))
+        .json(&json!({
+            "model": model,
+            "messages": [
+                {"role": "user", "content": user_message}
+            ],
+            "response_format": { "type": "json_object" }
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("OpenAI request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("OpenAI API error: {}", response.status()));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
+
+    let response_text = data
+        .get("choices")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("message"))
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_str())
+        .ok_or("Invalid OpenAI response format")?;
+
+    serde_json::from_str(response_text)
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_creative_prompts_anthropic(
+    themes_patterns: &str,
+    emotional_analysis: &str,
+    narrative_summary: &str,
+    config: &LLMConfig,
+) -> Result<GenerateCreativePromptsResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let model = map_anthropic_model(&config.anthropic_model);
+
+    let analysis_summary = format!(
+        "Themes & Patterns:\n{}\n\nEmotional Analysis:\n{}\n\nNarrative Summary:\n{}",
+        themes_patterns, emotional_analysis, narrative_summary
+    );
+
+    let user_message = format!("{}\n\n{}", CREATIVE_PROMPTS_GENERATION, analysis_summary);
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &config.anthropic_api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&json!({
+            "model": model,
+            "max_tokens": 2000,
+            "messages": [
+                {"role": "user", "content": user_message}
+            ]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Anthropic API error: {}", response.status()));
+    }
+
+    let data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Anthropic response: {}", e))?;
+
+    let response_text = data
+        .get("content")
+        .and_then(|c| c.get(0))
+        .and_then(|c| c.get("text"))
+        .and_then(|t| t.as_str())
+        .ok_or("Invalid Anthropic response format")?;
+
+    // Extract JSON from response
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str)
+        .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }

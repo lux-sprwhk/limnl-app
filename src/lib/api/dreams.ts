@@ -4,7 +4,10 @@ import type {
 	CreateDreamInput,
 	UpdateDreamInput,
 	DreamAnalysisWithCards,
-	GenerateDreamAnalysisRequest
+	GenerateDreamAnalysisRequest,
+	DreamCreativePrompts,
+	DreamCreativePromptsData,
+	GenerateCreativePromptsRequest
 } from '$lib/types/dream';
 
 export const dreamsApi = {
@@ -41,5 +44,25 @@ export const dreamsApi = {
 		return await invoke<DreamAnalysisWithCards | null>('get_dream_analysis_with_cards', {
 			dreamId
 		});
+	},
+
+	// Dream Creative Prompts
+	async generateCreativePrompts(request: GenerateCreativePromptsRequest): Promise<DreamCreativePrompts> {
+		return await invoke<DreamCreativePrompts>('generate_dream_creative_prompts', { request });
+	},
+
+	async getCreativePrompts(dreamAnalysisId: number): Promise<DreamCreativePromptsData | null> {
+		const result = await invoke<DreamCreativePrompts | null>('get_dream_creative_prompts', {
+			dreamAnalysisId
+		});
+
+		if (!result) return null;
+
+		// Parse JSON strings to arrays
+		return {
+			image_prompts: JSON.parse(result.image_prompts),
+			music_prompts: JSON.parse(result.music_prompts),
+			story_prompts: JSON.parse(result.story_prompts)
+		};
 	}
 };

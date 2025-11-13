@@ -75,3 +75,19 @@ pub struct GenerateDreamAnalysisResponse {
     pub narrative_summary: String,
     pub symbol_cards: Vec<SymbolCard>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateCreativePromptsRequest {
+    pub dream_analysis_id: i64,
+    pub themes_patterns: String,
+    pub emotional_analysis: String,
+    pub narrative_summary: String,
+    pub config: LLMConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateCreativePromptsResponse {
+    pub image_prompts: Vec<String>,
+    pub music_prompts: Vec<String>,
+    pub story_prompts: Vec<String>,
+}

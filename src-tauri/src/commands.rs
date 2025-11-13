@@ -2,7 +2,7 @@ use crate::db::{models::*, Database};
 use crate::llm::{
     client, GenerateTitleRequest, GenerateTitleResponse, OptimizeDescriptionRequest,
     OptimizeDescriptionResponse, CardCommentaryResponse, GenerateDreamAnalysisRequest,
-    GenerateDreamAnalysisResponse,
+    GenerateCreativePromptsRequest,
 };
 use tauri::State;
 use std::path::PathBuf;
@@ -126,6 +126,48 @@ pub fn get_dream_analysis_with_cards(
     dream_id: i64,
 ) -> Result<Option<DreamAnalysisWithCards>, String> {
     db.get_dream_analysis_with_cards(dream_id).map_err(|e| e.to_string())
+}
+
+// Dream creative prompts commands
+#[tauri::command]
+pub async fn generate_dream_creative_prompts(
+    db: State<'_, Database>,
+    request: GenerateCreativePromptsRequest,
+) -> Result<DreamCreativePrompts, String> {
+    // Call LLM to generate creative prompts
+    let llm_response = client::generate_creative_prompts(
+        &request.themes_patterns,
+        &request.emotional_analysis,
+        &request.narrative_summary,
+        &request.config
+    ).await?;
+
+    // Convert arrays to JSON strings
+    let image_prompts_json = serde_json::to_string(&llm_response.image_prompts)
+        .map_err(|e| format!("Failed to serialize image prompts: {}", e))?;
+    let music_prompts_json = serde_json::to_string(&llm_response.music_prompts)
+        .map_err(|e| format!("Failed to serialize music prompts: {}", e))?;
+    let story_prompts_json = serde_json::to_string(&llm_response.story_prompts)
+        .map_err(|e| format!("Failed to serialize story prompts: {}", e))?;
+
+    // Create the creative prompts in the database
+    let prompts_input = CreateDreamCreativePromptsInput {
+        dream_analysis_id: request.dream_analysis_id,
+        image_prompts: image_prompts_json,
+        music_prompts: music_prompts_json,
+        story_prompts: story_prompts_json,
+    };
+
+    db.create_dream_creative_prompts(prompts_input)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn get_dream_creative_prompts(
+    db: State<Database>,
+    dream_analysis_id: i64,
+) -> Result<Option<DreamCreativePrompts>, String> {
+    db.get_dream_creative_prompts(dream_analysis_id).map_err(|e| e.to_string())
 }
 
 // Bug tracking commands

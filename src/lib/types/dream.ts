@@ -94,3 +94,36 @@ export interface GenerateDreamAnalysisRequest {
 		anthropicModel: string;
 	};
 }
+
+// Dream Creative Prompts types
+export interface DreamCreativePrompts {
+	id?: number;
+	dream_analysis_id: number;
+	image_prompts: string; // JSON string
+	music_prompts: string; // JSON string
+	story_prompts: string; // JSON string
+	created_at: string;
+	updated_at: string;
+}
+
+export interface DreamCreativePromptsData {
+	image_prompts: string[];
+	music_prompts: string[];
+	story_prompts: string[];
+}
+
+export interface GenerateCreativePromptsRequest {
+	dream_analysis_id: number;
+	themes_patterns: string;
+	emotional_analysis: string;
+	narrative_summary: string;
+	config: {
+		provider: 'disabled' | 'ollama' | 'openai' | 'anthropic';
+		ollamaUrl: string;
+		ollamaModel: string;
+		openaiApiKey: string;
+		openaiModel: string;
+		anthropicApiKey: string;
+		anthropicModel: string;
+	};
+}

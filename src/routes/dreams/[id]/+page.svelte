@@ -2,9 +2,9 @@
 	import { onMount } from 'svelte';
 	import { css } from '../../../../styled-system/css';
 	import { dreamsApi } from '$lib/api/dreams';
-	import type { Dream, DreamAnalysisWithCards } from '$lib/types/dream';
+	import type { Dream, DreamAnalysisWithCards, DreamCreativePromptsData } from '$lib/types/dream';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Edit, Trash2, Calendar, Moon, Sparkles, Palette, Music, BookOpen } from 'lucide-svelte';
+	import { ArrowLeft, Edit, Trash2, Calendar, Moon, Sparkles, Palette, Music, BookOpen, Copy, Check } from 'lucide-svelte';
 	import { llmSettings } from '$lib/stores/llm-settings.svelte';
 
 	let { data } = $props();
@@ -17,10 +17,15 @@
 	let analysis = $state<DreamAnalysisWithCards | null>(null);
 	let analysisLoading = $state(false);
 	let analysisError = $state<string | null>(null);
+	let creativePrompts = $state<DreamCreativePromptsData | null>(null);
+	let creativePromptsLoading = $state(false);
+	let creativePromptsError = $state<string | null>(null);
+	let copiedPromptIndex = $state<string | null>(null);
 
 	onMount(async () => {
 		await loadDream();
 		await loadAnalysis();
+		await loadCreativePrompts();
 	});
 
 	async function loadDream() {
@@ -56,6 +61,24 @@
 		}
 	}
 
+	async function loadCreativePrompts() {
+		if (!llmSettings.isConfigured || !analysis) return;
+
+		try {
+			creativePromptsLoading = true;
+			creativePromptsError = null;
+			const analysisId = analysis.analysis.id;
+			if (analysisId) {
+				creativePrompts = await dreamsApi.getCreativePrompts(analysisId);
+			}
+		} catch (error) {
+			console.error('Failed to load creative prompts:', error);
+			creativePromptsError = 'Failed to load creative prompts';
+		} finally {
+			creativePromptsLoading = false;
+		}
+	}
+
 	async function generateAnalysis() {
 		if (!dream || !llmSettings.isConfigured) return;
 
@@ -71,12 +94,46 @@
 				sleep_quality: dream.sleep_quality,
 				config: llmSettings.config
 			});
+
+			// After generating analysis, automatically generate creative prompts
+			await generateCreativePrompts();
 		} catch (error) {
 			console.error('Failed to generate analysis:', error);
 			analysisError =
 				error instanceof Error ? error.message : 'Failed to generate analysis. Please try again.';
 		} finally {
 			analysisLoading = false;
+		}
+	}
+
+	async function generateCreativePrompts() {
+		if (!analysis || !llmSettings.isConfigured) return;
+
+		try {
+			creativePromptsLoading = true;
+			creativePromptsError = null;
+
+			const analysisId = analysis.analysis.id;
+			if (!analysisId) {
+				throw new Error('Analysis ID not found');
+			}
+
+			await dreamsApi.generateCreativePrompts({
+				dream_analysis_id: analysisId,
+				themes_patterns: analysis.analysis.themes_patterns,
+				emotional_analysis: analysis.analysis.emotional_analysis,
+				narrative_summary: analysis.analysis.narrative_summary,
+				config: llmSettings.config
+			});
+
+			// Load the newly generated prompts
+			await loadCreativePrompts();
+		} catch (error) {
+			console.error('Failed to generate creative prompts:', error);
+			creativePromptsError =
+				error instanceof Error ? error.message : 'Failed to generate creative prompts. Please try again.';
+		} finally {
+			creativePromptsLoading = false;
 		}
 	}
 
@@ -234,11 +291,47 @@
 		lineHeight: '1.6',
 		color: 'text.primary',
 		transition: 'all 0.2s',
-		cursor: 'pointer',
+		display: 'flex',
+		alignItems: 'flex-start',
+		justifyContent: 'space-between',
+		gap: '1rem',
 		'&:hover': {
 			borderColor: 'breakthrough.500',
 			backgroundColor: 'void.700'
 		}
+	});
+
+	const promptTextStyles = css({
+		flex: '1'
+	});
+
+	const copyButtonStyles = css({
+		padding: '0.5rem',
+		backgroundColor: 'transparent',
+		border: '1px solid',
+		borderColor: 'border.liminal',
+		borderRadius: 'md',
+		color: 'text.secondary',
+		cursor: 'pointer',
+		transition: 'all 0.2s',
+		flexShrink: '0',
+		display: 'flex',
+		alignItems: 'center',
+		justifyContent: 'center',
+		'&:hover': {
+			borderColor: 'breakthrough.500',
+			backgroundColor: 'void.700',
+			color: 'breakthrough.400'
+		},
+		'&:active': {
+			transform: 'scale(0.95)'
+		}
+	});
+
+	const copiedButtonStyles = css({
+		borderColor: 'green.500',
+		backgroundColor: 'green.900',
+		color: 'green.400'
 	});
 
 	const emptyStateStyles = css({
@@ -382,6 +475,18 @@
 	function getQualityLabel(quality: number): string {
 		const labels = ['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 		return labels[quality - 1] || 'Unknown';
+	}
+
+	async function copyToClipboard(text: string, promptId: string) {
+		try {
+			await navigator.clipboard.writeText(text);
+			copiedPromptIndex = promptId;
+			setTimeout(() => {
+				copiedPromptIndex = null;
+			}, 2000);
+		} catch (error) {
+			console.error('Failed to copy to clipboard:', error);
+		}
 	}
 </script>
 
@@ -582,62 +687,144 @@
 
 			<!-- Creative Tab -->
 			{#if activeTab === 'creative'}
-				<!-- Image Prompts Section -->
-				<div class={promptSectionStyles}>
-					<h3 class={promptSectionTitleStyles}>
-						<Palette size={20} />
-						Image Prompts
-					</h3>
-					<div class={promptListStyles}>
-						<div class={promptItemStyles}>
-							[Placeholder] A surreal dreamscape depicting {dream.title.toLowerCase()}...
+				{#if !llmSettings.isConfigured}
+					<div class={emptyStateStyles}>
+						<Palette size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							LLM Not Configured
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Configure an LLM provider in Settings to generate creative prompts.
+						</p>
+						<Button variant="primary" onclick={() => (window.location.href = '/settings')}>
+							Go to Settings
+						</Button>
+					</div>
+				{:else if !analysis}
+					<div class={emptyStateStyles}>
+						<Sparkles size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							Generate Analysis First
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Creative prompts are automatically generated when you create a dream analysis. Switch to the Analysis tab to get started.
+						</p>
+					</div>
+				{:else if creativePromptsLoading}
+					<div class={emptyStateStyles}>
+						<div class={css({ fontSize: 'lg', color: 'text.secondary' })}>Generating creative prompts...</div>
+					</div>
+				{:else if creativePromptsError}
+					<div class={emptyStateStyles}>
+						<div class={css({ fontSize: 'md', color: 'red.400', marginBottom: '1rem' })}>
+							{creativePromptsError}
 						</div>
-						<div class={promptItemStyles}>
-							[Placeholder] An ethereal visualization of the key moments from this dream...
-						</div>
-						<div class={promptItemStyles}>
-							[Placeholder] Abstract representation of the emotions and atmosphere in this dream...
+						<Button variant="primary" onclick={generateCreativePrompts}>
+							<Sparkles size={16} />
+							Retry Creative Prompts
+						</Button>
+					</div>
+				{:else if !creativePrompts}
+					<div class={emptyStateStyles}>
+						<Palette size={48} class={css({ margin: '0 auto 1rem', color: 'text.muted' })} />
+						<h3 class={css({ fontSize: 'lg', fontWeight: 'semibold', marginBottom: '0.5rem', color: 'text.secondary' })}>
+							No Creative Prompts Yet
+						</h3>
+						<p class={css({ marginBottom: '1rem' })}>
+							Generate AI-powered creative prompts for images, music, and stories inspired by your dream analysis.
+						</p>
+						<Button variant="primary" onclick={generateCreativePrompts}>
+							<Palette size={16} />
+							Generate Creative Prompts
+						</Button>
+					</div>
+				{:else}
+					<!-- Image Prompts Section -->
+					<div class={promptSectionStyles}>
+						<h3 class={promptSectionTitleStyles}>
+							<Palette size={20} />
+							Image Prompts
+						</h3>
+						<div class={promptListStyles}>
+							{#each creativePrompts.image_prompts as prompt, index}
+								<div class={promptItemStyles}>
+									<div class={promptTextStyles}>{prompt}</div>
+									<button
+										class={`${copyButtonStyles} ${copiedPromptIndex === `image-${index}` ? copiedButtonStyles : ''}`}
+										onclick={() => copyToClipboard(prompt, `image-${index}`)}
+										title="Copy to clipboard"
+									>
+										{#if copiedPromptIndex === `image-${index}`}
+											<Check size={18} />
+										{:else}
+											<Copy size={18} />
+										{/if}
+									</button>
+								</div>
+							{/each}
 						</div>
 					</div>
-				</div>
 
-				<!-- Music Prompts Section -->
-				<div class={promptSectionStyles}>
-					<h3 class={promptSectionTitleStyles}>
-						<Music size={20} />
-						Music Prompts
-					</h3>
-					<div class={promptListStyles}>
-						<div class={promptItemStyles}>
-							[Placeholder] An ambient soundscape that captures the mood of {dream.title.toLowerCase()}...
-						</div>
-						<div class={promptItemStyles}>
-							[Placeholder] A melodic piece reflecting the emotional journey of this dream...
-						</div>
-						<div class={promptItemStyles}>
-							[Placeholder] Atmospheric music inspired by the themes and imagery in this dream...
+					<!-- Music Prompts Section -->
+					<div class={promptSectionStyles}>
+						<h3 class={promptSectionTitleStyles}>
+							<Music size={20} />
+							Music Prompts
+						</h3>
+						<div class={promptListStyles}>
+							{#each creativePrompts.music_prompts as prompt, index}
+								<div class={promptItemStyles}>
+									<div class={promptTextStyles}>{prompt}</div>
+									<button
+										class={`${copyButtonStyles} ${copiedPromptIndex === `music-${index}` ? copiedButtonStyles : ''}`}
+										onclick={() => copyToClipboard(prompt, `music-${index}`)}
+										title="Copy to clipboard"
+									>
+										{#if copiedPromptIndex === `music-${index}`}
+											<Check size={18} />
+										{:else}
+											<Copy size={18} />
+										{/if}
+									</button>
+								</div>
+							{/each}
 						</div>
 					</div>
-				</div>
 
-				<!-- Story Prompts Section -->
-				<div class={promptSectionStyles}>
-					<h3 class={promptSectionTitleStyles}>
-						<BookOpen size={20} />
-						Story Prompts
-					</h3>
-					<div class={promptListStyles}>
-						<div class={promptItemStyles}>
-							[Placeholder] Expand this dream into a short story exploring {dream.title.toLowerCase()}...
-						</div>
-						<div class={promptItemStyles}>
-							[Placeholder] Write a narrative that continues where this dream left off...
-						</div>
-						<div class={promptItemStyles}>
-							[Placeholder] Create a poetic interpretation of the symbols and themes in this dream...
+					<!-- Story Prompts Section -->
+					<div class={promptSectionStyles}>
+						<h3 class={promptSectionTitleStyles}>
+							<BookOpen size={20} />
+							Story Prompts
+						</h3>
+						<div class={promptListStyles}>
+							{#each creativePrompts.story_prompts as prompt, index}
+								<div class={promptItemStyles}>
+									<div class={promptTextStyles}>{prompt}</div>
+									<button
+										class={`${copyButtonStyles} ${copiedPromptIndex === `story-${index}` ? copiedButtonStyles : ''}`}
+										onclick={() => copyToClipboard(prompt, `story-${index}`)}
+										title="Copy to clipboard"
+									>
+										{#if copiedPromptIndex === `story-${index}`}
+											<Check size={18} />
+										{:else}
+											<Copy size={18} />
+										{/if}
+									</button>
+								</div>
+							{/each}
 						</div>
 					</div>
-				</div>
+
+					<!-- Regenerate Button -->
+					<div class={css({ marginTop: '2rem', textAlign: 'center' })}>
+						<Button variant="outline" onclick={generateCreativePrompts} disabled={creativePromptsLoading}>
+							<Sparkles size={16} />
+							Regenerate Creative Prompts
+						</Button>
+					</div>
+				{/if}
 			{/if}
 		</div>
 	{/if}

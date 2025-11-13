@@ -68,6 +68,26 @@ pub struct DreamAnalysisWithCards {
     pub cards: Vec<DreamAnalysisCard>,
 }
 
+// Dream creative prompts models
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DreamCreativePrompts {
+    pub id: Option<i64>,
+    pub dream_analysis_id: i64,
+    pub image_prompts: String, // JSON array of image prompts
+    pub music_prompts: String, // JSON array of music prompts
+    pub story_prompts: String, // JSON array of story prompts
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateDreamCreativePromptsInput {
+    pub dream_analysis_id: i64,
+    pub image_prompts: String,
+    pub music_prompts: String,
+    pub story_prompts: String,
+}
+
 // Bug tracking models
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Bug {
