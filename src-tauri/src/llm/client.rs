@@ -1306,7 +1306,7 @@ async fn comment_on_multiple_cards_with_context_anthropic(
 
 // Helper to extract just card names and core meanings from cards.json
 fn extract_card_summaries() -> Result<String, String> {
-    let cards_json = include_str!("../../cards.json");
+    let cards_json = include_str!("../../../src/cards.json");
     let cards_data: Value = serde_json::from_str(cards_json)
         .map_err(|e| format!("Failed to parse cards.json: {}", e))?;
 

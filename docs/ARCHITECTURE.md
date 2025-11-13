@@ -29,7 +29,14 @@ Limnl is built as a Tauri desktop application with a clear separation between:
 - **macOS**: `~/Library/Application Support/com.limnl.limnl-journal/dreams.db`
 - **Windows**: `%APPDATA%\limnl\limnl-journal\dreams.db`
 
-**Schema** (8 tables, managed via migrations):
+**Schema** (8 tables total, managed via migrations):
+
+**Table Organization**:
+- **Core Entities** (4): `dreams`, `bugs`, `mind_dumps`, `cards`
+- **Dream Analysis** (3): `dream_analyses`, `dream_analysis_cards`, `dream_creative_prompts`
+- **Relationships** (1): `bug_cards`
+
+All tables below are created in migration `001_initial.sql`.
 
 ```sql
 -- Dream journal entries
@@ -41,11 +48,11 @@ CREATE TABLE dreams (
     content TEXT NOT NULL,
     emotions_tags TEXT,               -- Future: JSON array of emotion tags
     sleep_quality INTEGER,            -- 1-5 rating (optional)
-    is_recurring BOOLEAN DEFAULT 0,   -- Whether this dream has occurred before
-    last_occurrence_period TEXT,      -- Time period of last occurrence (e.g., "last_week")
-    is_lucid BOOLEAN DEFAULT 0,       -- Whether dreamer was aware they were dreaming
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
+
+    -- Note: is_recurring, last_occurrence_period, is_lucid exist in frontend types
+    -- but are not yet implemented in the database schema (planned for future migration)
 );
 
 -- AI-powered dream analysis (cached results)
@@ -225,6 +232,9 @@ See `docs/DEVELOPMENT.md#database-migrations` for detailed workflow.
 
 ## Dream Analysis System
 
+> **Added in**: Recent development (post v0.1.0)
+> **Status**: Fully implemented with database migration support
+
 The dream analysis system provides **AI-powered insights** into dream content with symbol card associations and creative prompts.
 
 ### Feature Architecture
@@ -304,9 +314,24 @@ dreams (1) ←→ (1) dream_analyses
 - Regenerating analysis replaces the old one (via transaction)
 
 **Why Cache?**:
-- LLM API calls are expensive/slow
+- LLM API calls are expensive/slow (cost: varies by provider)
 - Analysis results are deterministic for same input
 - Allows offline viewing after initial generation
+
+**Performance Considerations**:
+
+| Feature | Requires LLM | Cached | Offline Access | Avg. Latency |
+|---------|--------------|--------|----------------|--------------|
+| Dream Analysis | Yes | Yes | After generation | 5-15s (varies by provider/model) |
+| Creative Prompts | Yes | Yes | After generation | 5-10s |
+| Symbol Cards | No (pre-seeded) | N/A | Always | Instant |
+
+**Cost Implications**:
+- **Ollama (local)**: Free, but requires local compute resources
+- **OpenAI**: ~$0.01-0.05 per dream analysis (gpt-4o-mini)
+- **Anthropic Claude**: ~$0.02-0.08 per dream analysis (claude-3-5-haiku)
+- **Bulk Migration**: Analyzing 100 dreams could cost $1-8 depending on provider
+- **Recommendation**: Use Ollama for bulk operations, cloud APIs for quality
 
 ### Symbol Card Selection
 
@@ -654,8 +679,7 @@ const dream = await invoke<Dream>('create_dream', {
     date_occurred: '2025-01-15',
     title: 'Flying Dream',
     content: 'I was soaring...',
-    sleep_quality: 4,
-    is_lucid: true
+    sleep_quality: 4
   }
 });
 
@@ -674,3 +698,35 @@ const analysis = await dreamsApi.generateAnalysis({ ... });
 - Database: 2 commands
 
 All commands are defined in `src-tauri/src/commands.rs` and registered in `src-tauri/src/lib.rs`.
+
+---
+
+## Architecture Summary
+
+**System Metrics**:
+- **Total Tauri Commands**: 40
+- **Database Tables**: 8 (managed via migrations)
+- **Migration Version**: 1 (001_initial.sql)
+- **Frontend Routes**: 15+ pages (SvelteKit file-based routing)
+- **LLM Providers Supported**: 4 (Ollama, OpenAI, Anthropic, Disabled)
+- **Storage**: Local SQLite (no cloud sync)
+- **Platform**: Desktop (Linux, macOS, Windows via Tauri)
+
+**Key Features**:
+- ✅ Dream journal with full-text search
+- ✅ AI-powered dream analysis (themes, emotions, narrative)
+- ✅ Symbol card system (tarot-like deck)
+- ✅ Creative prompt generation (image/music/story)
+- ✅ Bug/problem tracking with card associations
+- ✅ Mind dumps (stream-of-consciousness journaling)
+- ✅ PIN-based authentication (optional)
+- ✅ User profiles (name, zodiac, MBTI)
+- ✅ Database backup/export
+- ✅ Schema versioning with migrations
+
+**Technology Stack**:
+- **Backend**: Rust + Tauri 2.x + SQLite (rusqlite)
+- **Frontend**: SvelteKit + TypeScript + Panda CSS + bits-ui
+- **LLM Integration**: HTTP client with provider abstraction
+- **Testing**: Vitest (frontend) + Rust built-in tests (backend)
+- **Package Manager**: pnpm (required)

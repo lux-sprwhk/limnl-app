@@ -64,7 +64,7 @@ impl Database {
             cards: Vec<CardData>,
         }
 
-        let cards_json = include_str!("../../cards.json");
+        let cards_json = include_str!("../../../src/cards.json");
         let cards_data: CardsJson = serde_json::from_str(cards_json)
             .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
 

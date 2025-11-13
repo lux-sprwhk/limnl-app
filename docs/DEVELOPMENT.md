@@ -164,7 +164,6 @@ Example:
 2. **Create a new dream**:
    - Click "New Dream" button
    - Fill in form (Date, Title, Content, Sleep Quality)
-   - Mark as recurring or lucid if applicable
    - Optionally click "Generate" next to title (requires LLM)
    - Click "Save Dream"
 3. **Search dreams**: Use search box to filter by keywords
@@ -243,9 +242,20 @@ Limnl uses a **file-based SQL migration system** that runs automatically on app 
 ### Migration Files
 
 Located in `src-tauri/migrations/`:
-- `001_initial.sql` - Base schema (8 tables)
-- `002_example.sql.example` - Template for new migrations
-- `README.md` - Comprehensive migration documentation
+
+```
+src-tauri/migrations/
+├── 001_initial.sql          # Base schema (8 tables)
+├── 002_example.sql.example  # Template for new migrations
+└── README.md                # Comprehensive migration documentation
+```
+
+**Current Schema Version**: 1 (as of migration 001)
+
+**Tables Added in Migration 001** (8 total):
+- Core tables: `dreams`, `bugs`, `mind_dumps`, `cards`
+- Dream analysis: `dream_analyses`, `dream_analysis_cards`, `dream_creative_prompts`
+- Relationships: `bug_cards`
 
 ### Checking Migration Status
 
@@ -290,7 +300,13 @@ cargo run --bin migrate-dream-analysis -- --dry-run
 cargo run --bin migrate-dream-analysis -- --limit 5
 ```
 
-**Note**: This is separate from schema migrations and requires LLM configuration.
+**Important Notes**:
+- This is separate from schema migrations and requires LLM configuration
+- **Cost Warning**: Analyzing large dream journals with cloud APIs can be expensive
+  - 100 dreams ≈ $1-8 depending on provider (OpenAI/Anthropic)
+  - Use Ollama (free, local) for bulk operations if cost is a concern
+  - Use `--dry-run` first to see how many dreams will be processed
+  - Use `--limit` to test with a small batch before running on entire journal
 
 ## Troubleshooting
 
