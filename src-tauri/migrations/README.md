@@ -97,6 +97,23 @@ cargo test db::migrations::tests
 # Done! Migration will run on next app start
 ```
 
+## Upgrade Path for Existing Users
+
+If you're upgrading from a version that used the old `init_schema` method (pre-migration system), the migration system will automatically handle the upgrade:
+
+1. **On first launch after upgrade**: The migration runner detects that no `schema_version` table exists
+2. **Safe execution**: The `001_initial.sql` migration uses `IF NOT EXISTS` clauses for all DDL statements
+3. **Idempotent**: Existing tables and data are preserved - the migration only creates missing tables/columns
+4. **Version tracking**: After running, `schema_version` will show version 1, indicating the initial migration has been applied
+
+**What this means:**
+- ✅ Your existing data is safe - no data loss
+- ✅ The migration system will track future schema changes
+- ✅ All tables will be created if they don't exist (for new installations)
+- ✅ Existing tables remain unchanged (for upgrades)
+
+**Note**: The migration system assumes that existing databases created by `init_schema` already have all the tables defined in `001_initial.sql`. If you had a database created before certain tables were added (e.g., before `dream_analyses` was introduced), those tables will be created automatically on upgrade.
+
 ## Troubleshooting
 
 **Migration failed during development?**

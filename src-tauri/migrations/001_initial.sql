@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS bug_cards (
     created_at TEXT NOT NULL,
     PRIMARY KEY (bug_id, card_id),
     FOREIGN KEY (bug_id) REFERENCES bugs(id) ON DELETE CASCADE,
-    FOREIGN KEY (card_id) REFERENCES cards(id)
+    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_bug_cards_card_id ON bug_cards(card_id);
