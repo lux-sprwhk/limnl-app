@@ -46,6 +46,8 @@ pub fn run() {
             commands::update_mind_dump,
             commands::delete_mind_dump,
             commands::search_mind_dumps,
+            commands::analyze_mind_dump,
+            commands::get_mind_dump_analysis_with_cards_and_tasks,
             commands::get_card,
             commands::get_card_by_name,
             commands::list_cards,

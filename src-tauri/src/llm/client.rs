@@ -1,9 +1,11 @@
-use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse, GenerateCreativePromptsResponse};
+use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse, GenerateCreativePromptsResponse, GenerateMindDumpAnalysisResponse};
 use super::prompts::{
     TITLE_GENERATION_PROMPT, DESCRIPTION_OPTIMIZATION_PROMPT, CARD_COMMENTARY_PROMPT,
     CARD_COMMENTARY_WITH_CONTEXT_PROMPT, MULTIPLE_CARDS_COMMENTARY_PROMPT,
     DISCOVERY_CHAT_SYSTEM_PROMPT, DREAM_ANALYSIS_PROMPT, CREATIVE_PROMPTS_GENERATION,
+    MIND_DUMP_ANALYSIS_PROMPT,
 };
+use super::helpers::{extract_card_summaries, extract_card_summaries_with_tags};
 use reqwest;
 use serde_json::{json, Value};
 
@@ -1305,26 +1307,6 @@ async fn comment_on_multiple_cards_with_context_anthropic(
     comment_on_multiple_cards_anthropic(cards, life_area, config).await
 }
 
-// Helper to extract just card names and core meanings from cards.json
-fn extract_card_summaries() -> Result<String, String> {
-    let cards_json = include_str!("../../../src/cards.json");
-    let cards_data: Value = serde_json::from_str(cards_json)
-        .map_err(|e| format!("Failed to parse cards.json: {}", e))?;
-
-    let cards_array = cards_data
-        .get("cards")
-        .and_then(|v| v.as_array())
-        .ok_or("Invalid cards.json structure")?;
-
-    let mut summaries = Vec::new();
-    for card in cards_array {
-        let name = card.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
-        let meaning = card.get("core_meaning").and_then(|v| v.as_str()).unwrap_or("No meaning");
-        summaries.push(format!("- {}: {}", name, meaning));
-    }
-
-    Ok(summaries.join("\n"))
-}
 
 // Dream analysis generation
 pub async fn generate_dream_analysis(
@@ -1762,4 +1744,142 @@ async fn generate_creative_prompts_anthropic(
 
     serde_json::from_str(json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+// Mind dump analysis generation
+pub async fn generate_mind_dump_analysis(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    match config.provider {
+        LLMProvider::Disabled => Err("LLM is disabled".to_string()),
+        LLMProvider::Ollama => generate_mind_dump_analysis_ollama(mind_dump_content, config).await,
+        LLMProvider::OpenAI => generate_mind_dump_analysis_openai(mind_dump_content, config).await,
+        LLMProvider::Anthropic => generate_mind_dump_analysis_anthropic(mind_dump_content, config).await,
+    }
+}
+
+async fn generate_mind_dump_analysis_ollama(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let url = format!("{}/api/generate", config.ollama_url);
+    let model = map_ollama_model(&config.ollama_model);
+
+    let card_summaries = extract_card_summaries_with_tags()?;
+    let prompt = MIND_DUMP_ANALYSIS_PROMPT.replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
+
+    let response = client
+        .post(&url)
+        .json(&json!({
+            "model": model,
+            "prompt": full_prompt,
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ollama request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API error: {}", response.status()));
+    }
+
+    let data: Value = response.json().await.map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+    let response_text = data.get("response").and_then(|v| v.as_str()).ok_or("Invalid Ollama response format")?;
+
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str).map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_mind_dump_analysis_openai(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let model = map_openai_model(&config.openai_model);
+
+    let card_summaries = extract_card_summaries_with_tags()?;
+    let prompt = MIND_DUMP_ANALYSIS_PROMPT.replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", config.openai_api_key))
+        .json(&json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": full_prompt }],
+            "temperature": 0.7
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("OpenAI request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("OpenAI API error: {}", response.status()));
+    }
+
+    let data: Value = response.json().await.map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
+    let response_text = data.get("choices").and_then(|v| v.as_array()).and_then(|arr| arr.get(0))
+        .and_then(|choice| choice.get("message")).and_then(|msg| msg.get("content"))
+        .and_then(|v| v.as_str()).ok_or("Invalid OpenAI response format")?;
+
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str).map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_mind_dump_analysis_anthropic(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let model = map_anthropic_model(&config.anthropic_model);
+
+    let card_summaries = extract_card_summaries_with_tags()?;
+    let prompt = MIND_DUMP_ANALYSIS_PROMPT.replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &config.anthropic_api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&json!({
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{ "role": "user", "content": full_prompt }]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Anthropic API error: {}", response.status()));
+    }
+
+    let data: Value = response.json().await.map_err(|e| format!("Failed to parse Anthropic response: {}", e))?;
+    let response_text = data.get("content").and_then(|v| v.as_array()).and_then(|arr| arr.get(0))
+        .and_then(|content| content.get("text")).and_then(|v| v.as_str())
+        .ok_or("Invalid Anthropic response format")?;
+
+    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
+    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
+    let json_str = &response_text[json_start..=json_end];
+
+    serde_json::from_str(json_str).map_err(|e| format!("Failed to parse JSON response: {}", e))
 }

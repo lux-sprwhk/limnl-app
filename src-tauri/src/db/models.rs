@@ -139,7 +139,8 @@ pub struct MindDump {
     pub id: Option<i64>,
     pub title: Option<String>,
     pub content: String,
-    pub word_count: i32,
+    pub character_count: i32,
+    pub mood_tags: Option<String>, // JSON string of mood tags
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -148,7 +149,7 @@ pub struct MindDump {
 pub struct CreateMindDumpInput {
     pub title: Option<String>,
     pub content: String,
-    pub word_count: i32,
+    pub character_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -156,7 +157,46 @@ pub struct UpdateMindDumpInput {
     pub id: i64,
     pub title: Option<String>,
     pub content: Option<String>,
-    pub word_count: Option<i32>,
+    pub character_count: Option<i32>,
+}
+
+// Mind dump analysis models
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindDumpAnalysis {
+    pub id: Option<i64>,
+    pub mind_dump_id: i64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindDumpAnalysisCard {
+    pub mind_dump_analysis_id: i64,
+    pub card_id: i64,
+    pub card_name: String,
+    pub relevance_note: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindDumpAnalysisTask {
+    pub id: Option<i64>,
+    pub mind_dump_analysis_id: i64,
+    pub title: String,
+    pub description: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindDumpAnalysisWithCards {
+    pub analysis: MindDumpAnalysis,
+    pub cards: Vec<MindDumpAnalysisCard>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MindDumpAnalysisWithCardsAndTasks {
+    pub analysis: MindDumpAnalysis,
+    pub cards: Vec<MindDumpAnalysisCard>,
+    pub tasks: Vec<MindDumpAnalysisTask>,
 }
 
 // Card models

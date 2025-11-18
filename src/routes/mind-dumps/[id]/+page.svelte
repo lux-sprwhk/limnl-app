@@ -1,15 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { formatDistanceToNow, format } from 'date-fns';
 	import { css } from '../../../../styled-system/css';
 	import { mindDumpApi } from '$lib/api/mind-dumps';
-	import type { MindDump } from '$lib/types/mind-dumps';
+	import type { MindDump, MindDumpAnalysisWithCardsAndTasks } from '$lib/types/mind-dump';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Trash2, Calendar, Brain } from 'lucide-svelte';
+	import { ArrowLeft, Trash2, Calendar, Brain, CheckSquare, Sparkles, Heart } from 'lucide-svelte';
 
 	let { data } = $props();
 	const id = data.id;
 
 	let entry = $state<MindDump | null>(null);
+	let analysis = $state<MindDumpAnalysisWithCardsAndTasks | null>(null);
 	let loading = $state(true);
 	let deleting = $state(false);
 
@@ -22,6 +24,9 @@
 			loading = true;
 			const entryId = parseInt(id);
 			entry = await mindDumpApi.get(entryId);
+			if (entry?.id) {
+				analysis = await mindDumpApi.getAnalysis(entry.id);
+			}
 		} catch (error) {
 			console.error('Failed to load journal entry:', error);
 		} finally {
@@ -47,29 +52,14 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
+	function formatRelativeTime(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric'
-		});
+		return formatDistanceToNow(date, { addSuffix: true });
 	}
 
 	function formatDateTime(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
-	}
-
-	function getEntryTitle(entry: MindDump): string {
-		if (entry.title) return entry.title;
-		return formatDate(entry.created_at);
+		return format(date, 'PPpp'); // e.g., "Apr 29, 2021, 11:59:59 AM"
 	}
 
 	const containerStyles = css({
@@ -149,7 +139,7 @@
 		color: 'text.secondary'
 	});
 
-	const wordCountBadgeStyles = css({
+	const characterCountBadgeStyles = css({
 		display: 'inline-flex',
 		alignItems: 'center',
 		padding: '0.25rem 0.75rem',
@@ -210,7 +200,7 @@
 	{:else}
 		<div class={contentStyles}>
 			<div class={titleContainerStyles}>
-				<h1 class={titleStyles}>{getEntryTitle(entry)}</h1>
+				<h1 class={titleStyles}>Mind dump from {formatRelativeTime(entry.created_at)}</h1>
 				<div class={buttonGroupStyles}>
 					<Button variant="outline" size="sm" onclick={handleDelete} disabled={deleting}>
 						<Trash2 size={16} />
@@ -227,11 +217,156 @@
 
 				<div class={metaItemStyles}>
 					<Brain size={16} />
-					<span class={wordCountBadgeStyles}>{entry.word_count} words</span>
+					<span class={characterCountBadgeStyles}>{entry.character_count} characters</span>
 				</div>
+
+				{#if entry.mood_tags}
+					{@const moodTags = (() => {
+						try {
+							return JSON.parse(entry.mood_tags) as string[];
+						} catch {
+							return [];
+						}
+					})()}
+					{#if moodTags.length > 0}
+						<div class={metaItemStyles}>
+							<Heart size={16} />
+							<div class={css({
+								display: 'flex',
+								flexWrap: 'wrap',
+								gap: '0.5rem'
+							})}>
+								{#each moodTags as tag}
+									<span class={css({
+										display: 'inline-flex',
+										alignItems: 'center',
+										padding: '0.25rem 0.75rem',
+										borderRadius: 'full',
+										fontSize: 'xs',
+										fontWeight: 'semibold',
+										backgroundColor: 'breakthrough.900',
+										color: 'breakthrough.200',
+										textTransform: 'capitalize'
+									})}>
+										{tag}
+									</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				{/if}
 			</div>
 
 			<div class={contentTextStyles}>{entry.content}</div>
+
+			{#if analysis}
+				{#if analysis.cards.length > 0 || analysis.tasks.length > 0}
+					<div class={css({
+						marginTop: '2rem',
+						paddingTop: '2rem',
+						borderTop: '1px solid',
+						borderColor: 'border.liminal'
+					})}>
+						{#if analysis.cards.length > 0}
+							<div class={css({ marginBottom: '2rem' })}>
+								<h2 class={css({
+									fontSize: 'xl',
+									fontWeight: 'semibold',
+									color: 'text.primary',
+									marginBottom: '1rem',
+									display: 'flex',
+									alignItems: 'center',
+									gap: '0.5rem'
+								})}>
+									<Sparkles size={20} />
+									Relevant Cards
+								</h2>
+								<div class={css({
+									display: 'flex',
+									flexDirection: 'column',
+									gap: '0.75rem'
+								})}>
+									{#each analysis.cards as card}
+										<div class={css({
+											padding: '1rem',
+											backgroundColor: 'void.800',
+											borderRadius: 'md',
+											border: '1px solid',
+											borderColor: 'border.liminal'
+										})}>
+											<div class={css({
+												fontWeight: 'semibold',
+												color: 'text.primary',
+												marginBottom: '0.25rem'
+											})}>
+												{card.card_name}
+											</div>
+											{#if card.relevance_note}
+												<div class={css({
+													fontSize: 'sm',
+													color: 'text.secondary',
+													marginTop: '0.25rem'
+												})}>
+													{card.relevance_note}
+												</div>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
+						{#if analysis.tasks.length > 0}
+							<div>
+								<h2 class={css({
+									fontSize: 'xl',
+									fontWeight: 'semibold',
+									color: 'text.primary',
+									marginBottom: '1rem',
+									display: 'flex',
+									alignItems: 'center',
+									gap: '0.5rem'
+								})}>
+									<CheckSquare size={20} />
+									Actionable Tasks
+								</h2>
+								<div class={css({
+									display: 'flex',
+									flexDirection: 'column',
+									gap: '0.75rem'
+								})}>
+									{#each analysis.tasks as task}
+										<div class={css({
+											padding: '1rem',
+											backgroundColor: 'breakthrough.950',
+											borderRadius: 'md',
+											border: '1px solid',
+											borderColor: 'breakthrough.800'
+										})}>
+											<div class={css({
+												fontWeight: 'semibold',
+												color: 'breakthrough.200',
+												marginBottom: task.description ? '0.5rem' : '0'
+											})}>
+												{task.title}
+											</div>
+											{#if task.description}
+												<div class={css({
+													fontSize: 'sm',
+													color: 'breakthrough.300',
+													marginTop: '0.25rem'
+												})}>
+													{task.description}
+												</div>
+											{/if}
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/if}
+					</div>
+				{/if}
+			{/if}
 
 			<div class={footerStyles}>
 				<div>Created: {formatDateTime(entry.created_at)}</div>

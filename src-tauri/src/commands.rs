@@ -2,7 +2,7 @@ use crate::db::{models::*, Database};
 use crate::llm::{
     client, GenerateTitleRequest, GenerateTitleResponse, OptimizeDescriptionRequest,
     OptimizeDescriptionResponse, CardCommentaryResponse, GenerateDreamAnalysisRequest,
-    GenerateCreativePromptsRequest,
+    GenerateCreativePromptsRequest, LLMConfig, GenerateMindDumpAnalysisResponse, LLMProvider,
 };
 use tauri::State;
 use std::path::PathBuf;
@@ -355,11 +355,70 @@ pub async fn chat_with_history(
 
 // Mind dump commands
 #[tauri::command]
-pub fn create_mind_dump(
-    db: State<Database>,
+pub async fn create_mind_dump(
+    db: State<'_, Database>,
     input: CreateMindDumpInput,
+    config: LLMConfig,
 ) -> Result<MindDump, String> {
-    db.create_mind_dump(input).map_err(|e| e.to_string())
+    // Create the mind dump first
+    let mind_dump = db.create_mind_dump(input.clone()).map_err(|e| e.to_string())?;
+    let mind_dump_id = mind_dump.id.ok_or("Mind dump ID not found")?;
+
+    // Trigger LLM analysis in background (don't fail if it errors)
+    if let LLMProvider::Disabled = config.provider {
+        // Skip analysis if LLM is disabled
+        return Ok(mind_dump);
+    }
+
+    // Run analysis
+    match client::generate_mind_dump_analysis(&input.content, &config).await {
+        Ok(analysis_response) => {
+            // Create analysis entry
+            match db.create_mind_dump_analysis(mind_dump_id) {
+                Ok(analysis) => {
+                    let analysis_id = analysis.id.unwrap();
+
+                    // Link cards to analysis
+                    for symbol_card in analysis_response.relevant_cards {
+                        // Get card by name
+                        if let Ok(Some(card)) = db.get_card_by_name(&symbol_card.card_name) {
+                            if let Some(card_id) = card.id {
+                                let _ = db.link_card_to_mind_dump_analysis(
+                                    analysis_id,
+                                    card_id,
+                                    Some(symbol_card.relevance_note),
+                                );
+                            }
+                        }
+                    }
+
+                    // Store tasks
+                    for task in analysis_response.tasks {
+                        let _ = db.create_mind_dump_analysis_task(
+                            analysis_id,
+                            task.title,
+                            task.description,
+                        );
+                    }
+
+                    // Store mood tags
+                    if !analysis_response.mood_tags.is_empty() {
+                        let mood_tags_json = serde_json::to_string(&analysis_response.mood_tags)
+                            .unwrap_or_else(|_| "[]".to_string());
+                        let _ = db.update_mind_dump_mood_tags(mind_dump_id, Some(mood_tags_json));
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to create mind dump analysis: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to analyze mind dump: {}", e);
+        }
+    }
+
+    Ok(mind_dump)
 }
 
 #[tauri::command]
@@ -502,4 +561,22 @@ pub fn get_database_path() -> Result<String, String> {
     Database::get_database_path_public()
         .map(|p| p.to_string_lossy().to_string())
         .map_err(|e| e.to_string())
+}
+
+// Mind dump analysis
+#[tauri::command]
+pub async fn analyze_mind_dump(
+    content: String,
+    config: LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    // Call LLM to generate analysis
+    client::generate_mind_dump_analysis(&content, &config).await
+}
+
+#[tauri::command]
+pub fn get_mind_dump_analysis_with_cards_and_tasks(
+    db: State<Database>,
+    mind_dump_id: i64,
+) -> Result<Option<MindDumpAnalysisWithCardsAndTasks>, String> {
+    db.get_mind_dump_analysis_with_cards_and_tasks(mind_dump_id).map_err(|e| e.to_string())
 }
