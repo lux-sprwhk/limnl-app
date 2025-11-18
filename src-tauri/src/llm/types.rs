@@ -110,4 +110,5 @@ pub struct GenerateMindDumpAnalysisResponse {
     pub relevant_cards: Vec<SymbolCard>,
     pub tasks: Vec<MindDumpTask>,
     pub mood_tags: Vec<String>,
+    pub blocker_patterns: Vec<String>,
 }

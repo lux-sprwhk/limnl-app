@@ -10,8 +10,8 @@ impl Database {
         let now = Utc::now();
 
         conn.execute(
-            "INSERT INTO mind_dump_analysis (mind_dump_id, created_at) VALUES (?1, ?2)",
-            params![mind_dump_id, now.to_rfc3339()],
+            "INSERT INTO mind_dump_analysis (mind_dump_id, blocker_patterns, created_at) VALUES (?1, ?2, ?3)",
+            params![mind_dump_id, None::<String>, now.to_rfc3339()],
         )?;
 
         let id = conn.last_insert_rowid();
@@ -19,6 +19,7 @@ impl Database {
         Ok(MindDumpAnalysis {
             id: Some(id),
             mind_dump_id,
+            blocker_patterns: None,
             created_at: now,
         })
     }
@@ -51,14 +52,15 @@ impl Database {
 
         // Get the analysis
         let mut stmt = conn.prepare(
-            "SELECT id, mind_dump_id, created_at FROM mind_dump_analysis WHERE mind_dump_id = ?1",
+            "SELECT id, mind_dump_id, blocker_patterns, created_at FROM mind_dump_analysis WHERE mind_dump_id = ?1",
         )?;
 
         let analysis = stmt.query_row(params![mind_dump_id], |row| {
             Ok(MindDumpAnalysis {
                 id: Some(row.get(0)?),
                 mind_dump_id: row.get(1)?,
-                created_at: row.get::<_, String>(2)?.parse().unwrap(),
+                blocker_patterns: row.get(2)?,
+                created_at: row.get::<_, String>(3)?.parse().unwrap(),
             })
         });
 
@@ -89,6 +91,22 @@ impl Database {
             .collect::<SqlResult<Vec<MindDumpAnalysisCard>>>()?;
 
         Ok(Some(MindDumpAnalysisWithCards { analysis, cards }))
+    }
+
+    /// Update blocker patterns for a mind dump analysis
+    pub fn update_mind_dump_analysis_blocker_patterns(
+        &self,
+        mind_dump_analysis_id: i64,
+        blocker_patterns: Option<String>,
+    ) -> SqlResult<()> {
+        let conn = self.get_connection();
+
+        conn.execute(
+            "UPDATE mind_dump_analysis SET blocker_patterns = ?1 WHERE id = ?2",
+            params![blocker_patterns, mind_dump_analysis_id],
+        )?;
+
+        Ok(())
     }
 
     /// Create a task for a mind dump analysis
@@ -126,14 +144,15 @@ impl Database {
 
         // Get the analysis
         let mut stmt = conn.prepare(
-            "SELECT id, mind_dump_id, created_at FROM mind_dump_analysis WHERE mind_dump_id = ?1",
+            "SELECT id, mind_dump_id, blocker_patterns, created_at FROM mind_dump_analysis WHERE mind_dump_id = ?1",
         )?;
 
         let analysis = stmt.query_row(params![mind_dump_id], |row| {
             Ok(MindDumpAnalysis {
                 id: Some(row.get(0)?),
                 mind_dump_id: row.get(1)?,
-                created_at: row.get::<_, String>(2)?.parse().unwrap(),
+                blocker_patterns: row.get(2)?,
+                created_at: row.get::<_, String>(3)?.parse().unwrap(),
             })
         });
 

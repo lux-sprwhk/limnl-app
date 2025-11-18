@@ -24,6 +24,7 @@ export interface UpdateMindDumpInput {
 export interface MindDumpAnalysis {
 	id?: number;
 	mind_dump_id: number;
+	blocker_patterns?: string; // JSON string of blocker pattern IDs
 	created_at: string;
 }
 

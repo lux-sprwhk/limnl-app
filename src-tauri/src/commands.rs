@@ -407,6 +407,13 @@ pub async fn create_mind_dump(
                             .unwrap_or_else(|_| "[]".to_string());
                         let _ = db.update_mind_dump_mood_tags(mind_dump_id, Some(mood_tags_json));
                     }
+
+                    // Store blocker patterns
+                    if !analysis_response.blocker_patterns.is_empty() {
+                        let blocker_patterns_json = serde_json::to_string(&analysis_response.blocker_patterns)
+                            .unwrap_or_else(|_| "[]".to_string());
+                        let _ = db.update_mind_dump_analysis_blocker_patterns(analysis_id, Some(blocker_patterns_json));
+                    }
                 }
                 Err(e) => {
                     eprintln!("Failed to create mind dump analysis: {}", e);

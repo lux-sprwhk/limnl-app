@@ -2,8 +2,8 @@ use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse, Genera
 use super::prompts::{
     TITLE_GENERATION_PROMPT, DESCRIPTION_OPTIMIZATION_PROMPT, CARD_COMMENTARY_PROMPT,
     CARD_COMMENTARY_WITH_CONTEXT_PROMPT, MULTIPLE_CARDS_COMMENTARY_PROMPT,
-    DISCOVERY_CHAT_SYSTEM_PROMPT, DREAM_ANALYSIS_PROMPT, CREATIVE_PROMPTS_GENERATION,
-    MIND_DUMP_ANALYSIS_PROMPT,
+    get_discovery_chat_system_prompt, DREAM_ANALYSIS_PROMPT, CREATIVE_PROMPTS_GENERATION,
+    get_mind_dump_analysis_prompt,
 };
 use super::helpers::{extract_card_summaries, extract_card_summaries_with_tags};
 use reqwest;
@@ -785,7 +785,7 @@ async fn chat_with_history_ollama(
         }
     }
 
-    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = get_discovery_chat_system_prompt()
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
@@ -870,7 +870,7 @@ async fn chat_with_history_openai(
         }
     }
 
-    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = get_discovery_chat_system_prompt()
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
@@ -985,7 +985,7 @@ async fn chat_with_history_anthropic(
         }
     }
 
-    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = get_discovery_chat_system_prompt()
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
@@ -1771,7 +1771,7 @@ async fn generate_mind_dump_analysis_ollama(
     let model = map_ollama_model(&config.ollama_model);
 
     let card_summaries = extract_card_summaries_with_tags()?;
-    let prompt = MIND_DUMP_ANALYSIS_PROMPT.replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let prompt = get_mind_dump_analysis_prompt().replace("{CARDS_SIMPLIFIED}", &card_summaries);
     let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
 
     let response = client
@@ -1810,7 +1810,7 @@ async fn generate_mind_dump_analysis_openai(
     let model = map_openai_model(&config.openai_model);
 
     let card_summaries = extract_card_summaries_with_tags()?;
-    let prompt = MIND_DUMP_ANALYSIS_PROMPT.replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let prompt = get_mind_dump_analysis_prompt().replace("{CARDS_SIMPLIFIED}", &card_summaries);
     let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
 
     let response = client
@@ -1852,7 +1852,7 @@ async fn generate_mind_dump_analysis_anthropic(
     let model = map_anthropic_model(&config.anthropic_model);
 
     let card_summaries = extract_card_summaries_with_tags()?;
-    let prompt = MIND_DUMP_ANALYSIS_PROMPT.replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let prompt = get_mind_dump_analysis_prompt().replace("{CARDS_SIMPLIFIED}", &card_summaries);
     let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
 
     let response = client

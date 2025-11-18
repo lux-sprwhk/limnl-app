@@ -165,6 +165,7 @@ pub struct UpdateMindDumpInput {
 pub struct MindDumpAnalysis {
     pub id: Option<i64>,
     pub mind_dump_id: i64,
+    pub blocker_patterns: Option<String>, // JSON string of blocker pattern IDs
     pub created_at: DateTime<Utc>,
 }
 

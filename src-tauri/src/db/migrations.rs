@@ -9,6 +9,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/004_add_mind_dump_analysis.sql"),
     include_str!("../../migrations/005_add_mind_dump_analysis_tasks.sql"),
     include_str!("../../migrations/006_add_mind_dump_mood_tags.sql"),
+    include_str!("../../migrations/007_add_mind_dump_blocker_patterns.sql"),
 ];
 
 /// Get the current schema version from the database

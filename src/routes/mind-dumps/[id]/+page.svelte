@@ -5,7 +5,7 @@
 	import { mindDumpApi } from '$lib/api/mind-dumps';
 	import type { MindDump, MindDumpAnalysisWithCardsAndTasks } from '$lib/types/mind-dump';
 	import Button from '$lib/components/ui/Button.svelte';
-	import { ArrowLeft, Trash2, Calendar, Brain, CheckSquare, Sparkles, Heart } from 'lucide-svelte';
+	import { ArrowLeft, Trash2, Calendar, Brain, CheckSquare, Sparkles, Heart, AlertTriangle } from 'lucide-svelte';
 
 	let { data } = $props();
 	const id = data.id;
@@ -363,6 +363,54 @@
 									{/each}
 								</div>
 							</div>
+						{/if}
+
+						{#if analysis.analysis.blocker_patterns}
+							{@const blockerPatterns = (() => {
+								try {
+									return JSON.parse(analysis.analysis.blocker_patterns) as string[];
+								} catch {
+									return [];
+								}
+							})()}
+							{#if blockerPatterns.length > 0}
+								<div>
+									<h2 class={css({
+										fontSize: 'xl',
+										fontWeight: 'semibold',
+										color: 'text.primary',
+										marginBottom: '1rem',
+										display: 'flex',
+										alignItems: 'center',
+										gap: '0.5rem'
+									})}>
+										<AlertTriangle size={20} />
+										Blocker Patterns
+									</h2>
+									<div class={css({
+										display: 'flex',
+										flexWrap: 'wrap',
+										gap: '0.5rem'
+									})}>
+										{#each blockerPatterns as pattern}
+											<span class={css({
+												display: 'inline-flex',
+												alignItems: 'center',
+												padding: '0.5rem 0.75rem',
+												borderRadius: 'md',
+												fontSize: 'sm',
+												fontWeight: 'medium',
+												backgroundColor: 'void.800',
+												color: 'text.secondary',
+												border: '1px solid',
+												borderColor: 'border.liminal'
+											})}>
+												{pattern.replace(/_/g, ' ')}
+											</span>
+										{/each}
+									</div>
+								</div>
+							{/if}
 						{/if}
 					</div>
 				{/if}
