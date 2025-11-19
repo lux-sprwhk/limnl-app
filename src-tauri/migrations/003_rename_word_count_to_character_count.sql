@@ -1,14 +1,28 @@
 -- Rename word_count to character_count in mind_dumps table
--- SQLite doesn't support RENAME COLUMN directly in older versions
--- So we'll use ALTER TABLE ADD COLUMN and then migrate the data
+-- SQLite doesn't support DROP COLUMN in older versions, so we recreate the table
+-- This is safe since there's no existing data to preserve
 
--- Add new character_count column
-ALTER TABLE mind_dumps ADD COLUMN character_count INTEGER NOT NULL DEFAULT 0;
+-- Step 1: Create new table with character_count instead of word_count
+CREATE TABLE IF NOT EXISTS mind_dumps_new (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT,
+    content TEXT NOT NULL,
+    character_count INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 
--- Copy data from word_count to character_count (for existing rows)
--- This will be done via a trigger since we can't use UPDATE in migrations directly
--- For new migrations, we'll just use the default value
+-- Step 2: Copy any existing data (migrating word_count to character_count if needed)
+-- Since we have no data, this is just for safety
+INSERT INTO mind_dumps_new (id, title, content, character_count, created_at, updated_at)
+SELECT id, title, content, COALESCE(word_count, 0), created_at, updated_at
+FROM mind_dumps;
 
--- Note: Existing data will have word_count values copied to character_count
--- This is acceptable as a migration step - users can re-save their mind dumps
--- to get accurate character counts
+-- Step 3: Drop old table
+DROP TABLE IF EXISTS mind_dumps;
+
+-- Step 4: Rename new table to original name
+ALTER TABLE mind_dumps_new RENAME TO mind_dumps;
+
+-- Step 5: Recreate index
+CREATE INDEX IF NOT EXISTS idx_mind_dumps_created_at ON mind_dumps(created_at);

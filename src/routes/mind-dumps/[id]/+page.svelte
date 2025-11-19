@@ -223,7 +223,13 @@
 				{#if entry.mood_tags}
 					{@const moodTags = (() => {
 						try {
-							return JSON.parse(entry.mood_tags) as string[];
+							const parsed = JSON.parse(entry.mood_tags) as string[];
+							// Validate: ensure it's an array of strings and filter out any non-string values
+							// Svelte auto-escapes content, but we validate structure for safety
+							if (Array.isArray(parsed)) {
+								return parsed.filter((tag): tag is string => typeof tag === 'string' && tag.length > 0);
+							}
+							return [];
 						} catch {
 							return [];
 						}
@@ -368,7 +374,13 @@
 						{#if analysis.analysis.blocker_patterns}
 							{@const blockerPatterns = (() => {
 								try {
-									return JSON.parse(analysis.analysis.blocker_patterns) as string[];
+									const parsed = JSON.parse(analysis.analysis.blocker_patterns) as string[];
+									// Validate: ensure it's an array of strings and filter out any non-string values
+									// Svelte auto-escapes content, but we validate structure for safety
+									if (Array.isArray(parsed)) {
+										return parsed.filter((pattern): pattern is string => typeof pattern === 'string' && pattern.length > 0);
+									}
+									return [];
 								} catch {
 									return [];
 								}

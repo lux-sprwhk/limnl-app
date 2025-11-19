@@ -355,13 +355,31 @@ pub async fn chat_with_history(
 
 // Mind dump commands
 #[tauri::command]
-pub async fn create_mind_dump(
+pub fn create_mind_dump(
     db: State<'_, Database>,
     input: CreateMindDumpInput,
     config: LLMConfig,
 ) -> Result<MindDump, String> {
-    // Create the mind dump first
-    let mind_dump = db.create_mind_dump(input.clone()).map_err(|e| e.to_string())?;
+    // Validate input
+    let trimmed_content = input.content.trim();
+    if trimmed_content.is_empty() {
+        return Err("Content cannot be empty".to_string());
+    }
+    
+    const MAX_CHARACTERS: i32 = 2000;
+    if trimmed_content.len() > MAX_CHARACTERS as usize {
+        return Err(format!("Content exceeds maximum length of {} characters", MAX_CHARACTERS));
+    }
+    
+    if input.character_count != trimmed_content.len() as i32 {
+        return Err("Character count mismatch".to_string());
+    }
+    
+    // Create the mind dump first (synchronous DB operation)
+    // Use trimmed content for consistency
+    let mut validated_input = input.clone();
+    validated_input.content = trimmed_content.to_string();
+    let mind_dump = db.create_mind_dump(validated_input).map_err(|e| e.to_string())?;
     let mind_dump_id = mind_dump.id.ok_or("Mind dump ID not found")?;
 
     // Trigger LLM analysis in background (don't fail if it errors)
@@ -370,60 +388,99 @@ pub async fn create_mind_dump(
         return Ok(mind_dump);
     }
 
-    // Run analysis
-    match client::generate_mind_dump_analysis(&input.content, &config).await {
-        Ok(analysis_response) => {
-            // Create analysis entry
-            match db.create_mind_dump_analysis(mind_dump_id) {
-                Ok(analysis) => {
-                    let analysis_id = analysis.id.unwrap();
+    // Spawn async LLM analysis in background
+    // Open a new database connection for the background task
+    let content = input.content.clone();
+    
+    tokio::spawn(async move {
+        // Open a new database connection for this background task
+        let background_db = match Database::new() {
+            Ok(db) => db,
+            Err(e) => {
+                eprintln!("Failed to open database for background analysis: {}", e);
+                return;
+            }
+        };
 
-                    // Link cards to analysis
-                    for symbol_card in analysis_response.relevant_cards {
-                        // Get card by name
-                        if let Ok(Some(card)) = db.get_card_by_name(&symbol_card.card_name) {
-                            if let Some(card_id) = card.id {
-                                let _ = db.link_card_to_mind_dump_analysis(
-                                    analysis_id,
-                                    card_id,
-                                    Some(symbol_card.relevance_note),
-                                );
+        // Run analysis
+        match client::generate_mind_dump_analysis(&content, &config).await {
+            Ok(analysis_response) => {
+                // Serialize blocker patterns
+                let blocker_patterns_json = if analysis_response.blocker_patterns.is_empty() {
+                    None
+                } else {
+                    serde_json::to_string(&analysis_response.blocker_patterns).ok()
+                };
+
+                // Create analysis entry
+                match background_db.create_mind_dump_analysis(mind_dump_id) {
+                    Ok(analysis) => {
+                        let analysis_id = match analysis.id {
+                            Some(id) => id,
+                            None => {
+                                eprintln!("Failed to get analysis ID after creation");
+                                return;
+                            }
+                        };
+
+                        // Link cards to analysis
+                        for symbol_card in analysis_response.relevant_cards {
+                            // Get card by name
+                            if let Ok(Some(card)) = background_db.get_card_by_name(&symbol_card.card_name) {
+                                if let Some(card_id) = card.id {
+                                    if let Err(e) = background_db.link_card_to_mind_dump_analysis(
+                                        analysis_id,
+                                        card_id,
+                                        Some(symbol_card.relevance_note),
+                                    ) {
+                                        eprintln!("Failed to link card '{}' to analysis: {}", symbol_card.card_name, e);
+                                    }
+                                } else {
+                                    eprintln!("Card '{}' has no ID", symbol_card.card_name);
+                                }
+                            } else {
+                                eprintln!("Card '{}' not found in database", symbol_card.card_name);
+                            }
+                        }
+
+                        // Store tasks
+                        for task in analysis_response.tasks {
+                            let task_title = task.title.clone();
+                            if let Err(e) = background_db.create_mind_dump_analysis_task(
+                                analysis_id,
+                                task.title,
+                                task.description,
+                            ) {
+                                eprintln!("Failed to create task '{}': {}", task_title, e);
+                            }
+                        }
+
+                        // Store mood tags
+                        if !analysis_response.mood_tags.is_empty() {
+                            let mood_tags_json = serde_json::to_string(&analysis_response.mood_tags)
+                                .unwrap_or_else(|_| "[]".to_string());
+                            if let Err(e) = background_db.update_mind_dump_mood_tags(mind_dump_id, Some(mood_tags_json)) {
+                                eprintln!("Failed to update mood tags: {}", e);
+                            }
+                        }
+
+                        // Store blocker patterns
+                        if let Some(blocker_patterns_json) = &blocker_patterns_json {
+                            if let Err(e) = background_db.update_mind_dump_analysis_blocker_patterns(analysis_id, Some(blocker_patterns_json.clone())) {
+                                eprintln!("Failed to update blocker patterns: {}", e);
                             }
                         }
                     }
-
-                    // Store tasks
-                    for task in analysis_response.tasks {
-                        let _ = db.create_mind_dump_analysis_task(
-                            analysis_id,
-                            task.title,
-                            task.description,
-                        );
+                    Err(e) => {
+                        eprintln!("Failed to create mind dump analysis: {}", e);
                     }
-
-                    // Store mood tags
-                    if !analysis_response.mood_tags.is_empty() {
-                        let mood_tags_json = serde_json::to_string(&analysis_response.mood_tags)
-                            .unwrap_or_else(|_| "[]".to_string());
-                        let _ = db.update_mind_dump_mood_tags(mind_dump_id, Some(mood_tags_json));
-                    }
-
-                    // Store blocker patterns
-                    if !analysis_response.blocker_patterns.is_empty() {
-                        let blocker_patterns_json = serde_json::to_string(&analysis_response.blocker_patterns)
-                            .unwrap_or_else(|_| "[]".to_string());
-                        let _ = db.update_mind_dump_analysis_blocker_patterns(analysis_id, Some(blocker_patterns_json));
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Failed to create mind dump analysis: {}", e);
                 }
             }
+            Err(e) => {
+                eprintln!("Failed to analyze mind dump: {}", e);
+            }
         }
-        Err(e) => {
-            eprintln!("Failed to analyze mind dump: {}", e);
-        }
-    }
+    });
 
     Ok(mind_dump)
 }
