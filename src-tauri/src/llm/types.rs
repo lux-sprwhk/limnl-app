@@ -91,3 +91,24 @@ pub struct GenerateCreativePromptsResponse {
     pub music_prompts: Vec<String>,
     pub story_prompts: Vec<String>,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateMindDumpAnalysisRequest {
+    pub mind_dump_id: i64,
+    pub content: String,
+    pub config: LLMConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MindDumpTask {
+    pub title: String,
+    pub description: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GenerateMindDumpAnalysisResponse {
+    pub relevant_cards: Vec<SymbolCard>,
+    pub tasks: Vec<MindDumpTask>,
+    pub mood_tags: Vec<String>,
+    pub blocker_patterns: Vec<String>,
+}

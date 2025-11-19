@@ -2,7 +2,7 @@ use crate::db::{models::*, Database};
 use crate::llm::{
     client, GenerateTitleRequest, GenerateTitleResponse, OptimizeDescriptionRequest,
     OptimizeDescriptionResponse, CardCommentaryResponse, GenerateDreamAnalysisRequest,
-    GenerateCreativePromptsRequest,
+    GenerateCreativePromptsRequest, LLMConfig, GenerateMindDumpAnalysisResponse, LLMProvider,
 };
 use tauri::State;
 use std::path::PathBuf;
@@ -356,10 +356,162 @@ pub async fn chat_with_history(
 // Mind dump commands
 #[tauri::command]
 pub fn create_mind_dump(
-    db: State<Database>,
+    db: State<'_, Database>,
     input: CreateMindDumpInput,
+    config: LLMConfig,
 ) -> Result<MindDump, String> {
-    db.create_mind_dump(input).map_err(|e| e.to_string())
+    // Validate input - trim first, then validate
+    let trimmed_content = input.content.trim();
+    if trimmed_content.is_empty() {
+        return Err("Content cannot be empty".to_string());
+    }
+    
+    const MAX_CHARACTERS: i32 = 2000;
+    if trimmed_content.len() > MAX_CHARACTERS as usize {
+        return Err(format!("Content exceeds maximum length of {} characters", MAX_CHARACTERS));
+    }
+    
+    // Use trimmed length as the source of truth for character_count
+    // This prevents mismatch errors when frontend sends count based on untrimmed content
+    let trimmed_character_count = trimmed_content.len() as i32;
+    
+    // Create the mind dump first (synchronous DB operation)
+    // Use trimmed content and trimmed character count for consistency
+    let mut validated_input = input.clone();
+    validated_input.content = trimmed_content.to_string();
+    validated_input.character_count = trimmed_character_count;
+    let mind_dump = db.create_mind_dump(validated_input).map_err(|e| e.to_string())?;
+    let mind_dump_id = mind_dump.id.ok_or("Mind dump ID not found")?;
+
+    // Trigger LLM analysis in background (don't fail if it errors)
+    if let LLMProvider::Disabled = config.provider {
+        // Skip analysis if LLM is disabled
+        return Ok(mind_dump);
+    }
+
+    // Spawn async LLM analysis in background
+    // Open a new database connection for the background task
+    let content = input.content.clone();
+    
+    tokio::spawn(async move {
+        // Open a new database connection for this background task
+        let background_db = match Database::new() {
+            Ok(db) => db,
+            Err(e) => {
+                eprintln!("Failed to open database for background analysis: {}", e);
+                return;
+            }
+        };
+
+        // Run analysis
+        match client::generate_mind_dump_analysis(&content, &config).await {
+            Ok(analysis_response) => {
+                // Validate that mind dump still exists before creating analysis
+                // This prevents foreign key constraint errors if user deleted the mind dump
+                match background_db.get_mind_dump(mind_dump_id) {
+                    Ok(Some(_)) => {
+                        // Mind dump exists, proceed with analysis
+                    }
+                    Ok(None) => {
+                        eprintln!("Mind dump {} was deleted before analysis could complete", mind_dump_id);
+                        return;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to verify mind dump {} exists: {}", mind_dump_id, e);
+                        return;
+                    }
+                }
+
+                // Serialize blocker patterns
+                let blocker_patterns_json = if analysis_response.blocker_patterns.is_empty() {
+                    None
+                } else {
+                    serde_json::to_string(&analysis_response.blocker_patterns).ok()
+                };
+
+                // Create analysis entry - handle foreign key constraint errors gracefully
+                match background_db.create_mind_dump_analysis(mind_dump_id) {
+                    Ok(analysis) => {
+                        let analysis_id = match analysis.id {
+                            Some(id) => id,
+                            None => {
+                                eprintln!("Failed to get analysis ID after creation");
+                                return;
+                            }
+                        };
+
+                        // Link cards to analysis
+                        for symbol_card in analysis_response.relevant_cards {
+                            // Get card by name
+                            if let Ok(Some(card)) = background_db.get_card_by_name(&symbol_card.card_name) {
+                                if let Some(card_id) = card.id {
+                                    if let Err(e) = background_db.link_card_to_mind_dump_analysis(
+                                        analysis_id,
+                                        card_id,
+                                        Some(symbol_card.relevance_note),
+                                    ) {
+                                        eprintln!("Failed to link card '{}' to analysis: {}", symbol_card.card_name, e);
+                                    }
+                                } else {
+                                    eprintln!("Card '{}' has no ID", symbol_card.card_name);
+                                }
+                            } else {
+                                eprintln!("Card '{}' not found in database", symbol_card.card_name);
+                            }
+                        }
+
+                        // Store tasks
+                        for task in analysis_response.tasks {
+                            let task_title = task.title.clone();
+                            if let Err(e) = background_db.create_mind_dump_analysis_task(
+                                analysis_id,
+                                task.title,
+                                task.description,
+                            ) {
+                                eprintln!("Failed to create task '{}': {}", task_title, e);
+                            }
+                        }
+
+                        // Store mood tags - verify mind dump still exists
+                        if !analysis_response.mood_tags.is_empty() {
+                            // Double-check mind dump exists before updating
+                            if background_db.get_mind_dump(mind_dump_id).is_ok_and(|r| r.is_some()) {
+                                let mood_tags_json = serde_json::to_string(&analysis_response.mood_tags)
+                                    .unwrap_or_else(|_| "[]".to_string());
+                                if let Err(e) = background_db.update_mind_dump_mood_tags(mind_dump_id, Some(mood_tags_json)) {
+                                    eprintln!("Failed to update mood tags for mind_dump_id {}: {}", mind_dump_id, e);
+                                }
+                            } else {
+                                eprintln!("Mind dump {} was deleted before mood tags could be updated", mind_dump_id);
+                            }
+                        }
+
+                        // Store blocker patterns
+                        if let Some(blocker_patterns_json) = &blocker_patterns_json {
+                            if let Err(e) = background_db.update_mind_dump_analysis_blocker_patterns(analysis_id, Some(blocker_patterns_json.clone())) {
+                                eprintln!("Failed to update blocker patterns: {}", e);
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        // Check if error is due to foreign key constraint (mind dump deleted)
+                        let error_msg = e.to_string();
+                        if error_msg.contains("FOREIGN KEY") || error_msg.contains("foreign key") {
+                            eprintln!("Mind dump {} was deleted during analysis, skipping analysis creation", mind_dump_id);
+                        } else {
+                            eprintln!("Failed to create mind dump analysis for mind_dump_id {}: {}", mind_dump_id, e);
+                        }
+                        return;
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to analyze mind dump: {}", e);
+            }
+        }
+    });
+
+    Ok(mind_dump)
 }
 
 #[tauri::command]
@@ -502,4 +654,22 @@ pub fn get_database_path() -> Result<String, String> {
     Database::get_database_path_public()
         .map(|p| p.to_string_lossy().to_string())
         .map_err(|e| e.to_string())
+}
+
+// Mind dump analysis
+#[tauri::command]
+pub async fn analyze_mind_dump(
+    content: String,
+    config: LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    // Call LLM to generate analysis
+    client::generate_mind_dump_analysis(&content, &config).await
+}
+
+#[tauri::command]
+pub fn get_mind_dump_analysis_with_cards_and_tasks(
+    db: State<Database>,
+    mind_dump_id: i64,
+) -> Result<Option<MindDumpAnalysisWithCardsAndTasks>, String> {
+    db.get_mind_dump_analysis_with_cards_and_tasks(mind_dump_id).map_err(|e| e.to_string())
 }

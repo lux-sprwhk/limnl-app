@@ -6,12 +6,15 @@ pub mod multiple_cards_commentary;
 pub mod discovery_chat;
 pub mod dream_analysis;
 pub mod creative_prompts;
+pub mod mind_dump_analysis;
+pub mod blocker_patterns;
 
 pub use title_generation::TITLE_GENERATION_PROMPT;
 pub use description_optimization::DESCRIPTION_OPTIMIZATION_PROMPT;
 pub use card_commentary::CARD_COMMENTARY_PROMPT;
 pub use card_commentary_with_context::CARD_COMMENTARY_WITH_CONTEXT_PROMPT;
 pub use multiple_cards_commentary::MULTIPLE_CARDS_COMMENTARY_PROMPT;
-pub use discovery_chat::DISCOVERY_CHAT_SYSTEM_PROMPT;
+pub use discovery_chat::{get_discovery_chat_system_prompt, DISCOVERY_CHAT_SYSTEM_PROMPT};
 pub use dream_analysis::DREAM_ANALYSIS_PROMPT;
 pub use creative_prompts::CREATIVE_PROMPTS_GENERATION;
+pub use mind_dump_analysis::{get_mind_dump_analysis_prompt, MIND_DUMP_ANALYSIS_PROMPT};

@@ -5,6 +5,11 @@ use rusqlite::{Connection, Result as SqlResult, params};
 const MIGRATIONS: &[&str] = &[
     include_str!("../../migrations/001_initial.sql"),
     include_str!("../../migrations/002_add_dream_metadata.sql"),
+    include_str!("../../migrations/003_rename_word_count_to_character_count.sql"),
+    include_str!("../../migrations/004_add_mind_dump_analysis.sql"),
+    include_str!("../../migrations/005_add_mind_dump_analysis_tasks.sql"),
+    include_str!("../../migrations/006_add_mind_dump_mood_tags.sql"),
+    include_str!("../../migrations/007_add_mind_dump_blocker_patterns.sql"),
 ];
 
 /// Get the current schema version from the database

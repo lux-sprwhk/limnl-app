@@ -1,9 +1,11 @@
-use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse, GenerateCreativePromptsResponse};
+use super::types::{LLMConfig, LLMProvider, GenerateDreamAnalysisResponse, GenerateCreativePromptsResponse, GenerateMindDumpAnalysisResponse};
 use super::prompts::{
     TITLE_GENERATION_PROMPT, DESCRIPTION_OPTIMIZATION_PROMPT, CARD_COMMENTARY_PROMPT,
     CARD_COMMENTARY_WITH_CONTEXT_PROMPT, MULTIPLE_CARDS_COMMENTARY_PROMPT,
-    DISCOVERY_CHAT_SYSTEM_PROMPT, DREAM_ANALYSIS_PROMPT, CREATIVE_PROMPTS_GENERATION,
+    get_discovery_chat_system_prompt, DREAM_ANALYSIS_PROMPT, CREATIVE_PROMPTS_GENERATION,
+    get_mind_dump_analysis_prompt,
 };
+use super::helpers::{extract_card_summaries, extract_card_summaries_with_tags};
 use reqwest;
 use serde_json::{json, Value};
 
@@ -33,6 +35,91 @@ fn map_anthropic_model(model_name: &str) -> &str {
         "claude-sonnet" => "claude-sonnet-4-5",
         _ => model_name,
     }
+}
+
+/// Safely extract JSON from markdown code blocks or plain text
+/// Looks for ```json ... ``` blocks first, then falls back to finding { ... } in text
+fn extract_json_from_response(response_text: &str) -> Result<String, String> {
+    // First, try to find markdown code blocks with json language tag
+    if let Some(start_marker) = response_text.find("```json") {
+        let code_start = start_marker + 7; // Length of "```json"
+        // Find the closing ```
+        if let Some(end_marker) = response_text[code_start..].find("```") {
+            let json_str = response_text[code_start..code_start + end_marker].trim();
+            // Validate it looks like JSON (starts with { or [)
+            if json_str.starts_with('{') || json_str.starts_with('[') {
+                return Ok(json_str.to_string());
+            }
+        }
+    }
+    
+    // Also try ``` without language tag
+    if let Some(start_marker) = response_text.find("```") {
+        let code_start = start_marker + 3; // Length of "```"
+        if let Some(end_marker) = response_text[code_start..].find("```") {
+            let json_str = response_text[code_start..code_start + end_marker].trim();
+            // Validate it looks like JSON
+            if (json_str.starts_with('{') || json_str.starts_with('[')) && json_str.len() > 2 {
+                return Ok(json_str.to_string());
+            }
+        }
+    }
+    
+    // Fall back to finding JSON object/array in text
+    // Look for opening brace/bracket
+    let (json_start, opening_char, closing_char) = if let Some(pos) = response_text.find('{') {
+        (pos, '{', '}')
+    } else if let Some(pos) = response_text.find('[') {
+        (pos, '[', ']')
+    } else {
+        return Err("No JSON object or array found in response".to_string());
+    };
+    
+    // Find matching closing brace/bracket by counting nested braces
+    // Start with depth 1 since we're already at the opening character
+    let mut depth = 1;
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut json_end = None;
+    
+    // Iterate through characters, tracking byte positions
+    let mut chars = response_text[json_start + 1..].char_indices();
+    
+    while let Some((char_byte_offset, ch)) = chars.next() {
+        // char_byte_offset is relative to json_start + 1, so absolute position is:
+        let absolute_pos = json_start + 1 + char_byte_offset;
+        
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+        
+        match ch {
+            '\\' if in_string => {
+                escape_next = true;
+            }
+            '"' => {
+                in_string = !in_string;
+            }
+            c if c == opening_char && !in_string => {
+                depth += 1;
+            }
+            c if c == closing_char && !in_string => {
+                depth -= 1;
+                if depth == 0 {
+                    // Include the closing character in the slice
+                    json_end = Some(absolute_pos + ch.len_utf8() - 1);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    let json_end = json_end.ok_or("No matching closing brace/bracket found in JSON".to_string())?;
+    let json_str = &response_text[json_start..=json_end];
+    
+    Ok(json_str.to_string())
 }
 
 pub async fn generate_title(content: &str, config: &LLMConfig) -> Result<String, String> {
@@ -591,11 +678,8 @@ async fn comment_on_multiple_cards_ollama(
         .ok_or("Invalid Ollama response format")?;
 
     // Extract JSON from response (in case there's extra text)
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
-
-    serde_json::from_str(json_str)
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }
 
@@ -662,11 +746,8 @@ async fn comment_on_multiple_cards_openai(
         .ok_or("Invalid OpenAI response format")?;
 
     // Extract JSON from response (in case there's extra text)
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
-
-    serde_json::from_str(json_str)
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }
 
@@ -732,11 +813,8 @@ async fn comment_on_multiple_cards_anthropic(
         .ok_or("Invalid Anthropic response format")?;
 
     // Extract JSON from response (in case there's extra text)
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
-
-    serde_json::from_str(json_str)
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }
 
@@ -783,7 +861,7 @@ async fn chat_with_history_ollama(
         }
     }
 
-    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = get_discovery_chat_system_prompt()
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
@@ -868,7 +946,7 @@ async fn chat_with_history_openai(
         }
     }
 
-    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = get_discovery_chat_system_prompt()
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
@@ -983,7 +1061,7 @@ async fn chat_with_history_anthropic(
         }
     }
 
-    let mut system_prompt = DISCOVERY_CHAT_SYSTEM_PROMPT
+    let mut system_prompt = get_discovery_chat_system_prompt()
         .replace("{life_area}", life_area)
         .replace("{card_name}", card_name)
         .replace("{card_question}", card_question)
@@ -1305,26 +1383,6 @@ async fn comment_on_multiple_cards_with_context_anthropic(
     comment_on_multiple_cards_anthropic(cards, life_area, config).await
 }
 
-// Helper to extract just card names and core meanings from cards.json
-fn extract_card_summaries() -> Result<String, String> {
-    let cards_json = include_str!("../../../src/cards.json");
-    let cards_data: Value = serde_json::from_str(cards_json)
-        .map_err(|e| format!("Failed to parse cards.json: {}", e))?;
-
-    let cards_array = cards_data
-        .get("cards")
-        .and_then(|v| v.as_array())
-        .ok_or("Invalid cards.json structure")?;
-
-    let mut summaries = Vec::new();
-    for card in cards_array {
-        let name = card.get("name").and_then(|v| v.as_str()).unwrap_or("Unknown");
-        let meaning = card.get("core_meaning").and_then(|v| v.as_str()).unwrap_or("No meaning");
-        summaries.push(format!("- {}: {}", name, meaning));
-    }
-
-    Ok(summaries.join("\n"))
-}
 
 // Dream analysis generation
 pub async fn generate_dream_analysis(
@@ -1401,11 +1459,8 @@ async fn generate_dream_analysis_ollama(
         .ok_or("Invalid Ollama response format")?;
 
     // Extract JSON from response
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
-
-    serde_json::from_str(json_str)
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }
 
@@ -1486,11 +1541,8 @@ async fn generate_dream_analysis_openai(
         .ok_or("Invalid OpenAI response format")?;
 
     // Extract JSON from response
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
-
-    serde_json::from_str(json_str)
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }
 
@@ -1570,13 +1622,11 @@ async fn generate_dream_analysis_anthropic(
 
     // Extract JSON from response
     eprintln!("Extracting JSON from response text...");
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
+    let json_str = extract_json_from_response(response_text)?;
     eprintln!("JSON string length: {} chars", json_str.len());
 
     eprintln!("Parsing JSON analysis response...");
-    let result = serde_json::from_str(json_str)
+    let result = serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))?;
     eprintln!("Analysis parsed successfully!");
     Ok(result)
@@ -1643,11 +1693,8 @@ async fn generate_creative_prompts_ollama(
         .ok_or("Invalid Ollama response format")?;
 
     // Extract JSON from response
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
-
-    serde_json::from_str(json_str)
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
 }
 
@@ -1756,10 +1803,136 @@ async fn generate_creative_prompts_anthropic(
         .ok_or("Invalid Anthropic response format")?;
 
     // Extract JSON from response
-    let json_start = response_text.find('{').ok_or("No JSON object found in response")?;
-    let json_end = response_text.rfind('}').ok_or("No JSON object found in response")?;
-    let json_str = &response_text[json_start..=json_end];
-
-    serde_json::from_str(json_str)
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str)
         .map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+// Mind dump analysis generation
+pub async fn generate_mind_dump_analysis(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    match config.provider {
+        LLMProvider::Disabled => Err("LLM is disabled".to_string()),
+        LLMProvider::Ollama => generate_mind_dump_analysis_ollama(mind_dump_content, config).await,
+        LLMProvider::OpenAI => generate_mind_dump_analysis_openai(mind_dump_content, config).await,
+        LLMProvider::Anthropic => generate_mind_dump_analysis_anthropic(mind_dump_content, config).await,
+    }
+}
+
+async fn generate_mind_dump_analysis_ollama(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let url = format!("{}/api/generate", config.ollama_url);
+    let model = map_ollama_model(&config.ollama_model);
+
+    let card_summaries = extract_card_summaries_with_tags()?;
+    let prompt = get_mind_dump_analysis_prompt().replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
+
+    let response = client
+        .post(&url)
+        .json(&json!({
+            "model": model,
+            "prompt": full_prompt,
+            "stream": false
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Ollama request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Ollama API error: {}", response.status()));
+    }
+
+    let data: Value = response.json().await.map_err(|e| format!("Failed to parse Ollama response: {}", e))?;
+    let response_text = data.get("response").and_then(|v| v.as_str()).ok_or("Invalid Ollama response format")?;
+
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_mind_dump_analysis_openai(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let model = map_openai_model(&config.openai_model);
+
+    let card_summaries = extract_card_summaries_with_tags()?;
+    let prompt = get_mind_dump_analysis_prompt().replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
+
+    let response = client
+        .post("https://api.openai.com/v1/chat/completions")
+        .header("Authorization", format!("Bearer {}", config.openai_api_key))
+        .json(&json!({
+            "model": model,
+            "messages": [{ "role": "user", "content": full_prompt }],
+            "temperature": 0.7
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("OpenAI request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("OpenAI API error: {}", response.status()));
+    }
+
+    let data: Value = response.json().await.map_err(|e| format!("Failed to parse OpenAI response: {}", e))?;
+    let response_text = data.get("choices").and_then(|v| v.as_array()).and_then(|arr| arr.get(0))
+        .and_then(|choice| choice.get("message")).and_then(|msg| msg.get("content"))
+        .and_then(|v| v.as_str()).ok_or("Invalid OpenAI response format")?;
+
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse JSON response: {}", e))
+}
+
+async fn generate_mind_dump_analysis_anthropic(
+    mind_dump_content: &str,
+    config: &LLMConfig,
+) -> Result<GenerateMindDumpAnalysisResponse, String> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(60))
+        .build()
+        .map_err(|e| format!("Failed to build HTTP client: {}", e))?;
+    let model = map_anthropic_model(&config.anthropic_model);
+
+    let card_summaries = extract_card_summaries_with_tags()?;
+    let prompt = get_mind_dump_analysis_prompt().replace("{CARDS_SIMPLIFIED}", &card_summaries);
+    let full_prompt = format!("{}\n\n{}", prompt, mind_dump_content);
+
+    let response = client
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", &config.anthropic_api_key)
+        .header("anthropic-version", "2023-06-01")
+        .json(&json!({
+            "model": model,
+            "max_tokens": 1024,
+            "messages": [{ "role": "user", "content": full_prompt }]
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Anthropic request failed: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Anthropic API error: {}", response.status()));
+    }
+
+    let data: Value = response.json().await.map_err(|e| format!("Failed to parse Anthropic response: {}", e))?;
+    let response_text = data.get("content").and_then(|v| v.as_array()).and_then(|arr| arr.get(0))
+        .and_then(|content| content.get("text")).and_then(|v| v.as_str())
+        .ok_or("Invalid Anthropic response format")?;
+
+    let json_str = extract_json_from_response(response_text)?;
+    serde_json::from_str(&json_str).map_err(|e| format!("Failed to parse JSON response: {}", e))
 }

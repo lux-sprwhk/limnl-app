@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { formatDistanceToNow } from 'date-fns';
 	import { css } from '../../../styled-system/css';
 	import { mindDumpApi } from '$lib/api/mind-dumps';
 	import type { MindDump } from '$lib/types/mind-dump';
@@ -41,25 +42,14 @@
 		}
 	}
 
-	function formatDate(dateStr: string): string {
+	function formatRelativeTime(dateStr: string): string {
 		const date = new Date(dateStr);
-		return date.toLocaleDateString('en-US', {
-			year: 'numeric',
-			month: 'long',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit'
-		});
+		return formatDistanceToNow(date, { addSuffix: true });
 	}
 
 	function truncateContent(content: string, maxLength: number = 150): string {
 		if (content.length <= maxLength) return content;
 		return content.substring(0, maxLength) + '...';
-	}
-
-	function getEntryTitle(entry: MindDump): string {
-		if (entry.title) return entry.title;
-		return formatDate(entry.created_at);
 	}
 
 	const containerStyles = css({
@@ -158,18 +148,12 @@
 		marginBottom: '0.5rem'
 	});
 
-	const wordCountStyles = css({
+	const characterCountStyles = css({
 		fontSize: 'sm',
 		color: 'text.muted',
 		backgroundColor: 'void.800',
 		padding: '0.25rem 0.5rem',
 		borderRadius: 'md'
-	});
-
-	const entryDateStyles = css({
-		fontSize: 'sm',
-		color: 'text.muted',
-		marginBottom: '1rem'
 	});
 
 	const entryContentStyles = css({
@@ -247,10 +231,9 @@
 					<a href={`/mind-dumps/${entry.id}`} class={entryCardStyles}>
 						<div class={entryHeaderStyles}>
 							<div>
-								<h2 class={entryTitleStyles}>{getEntryTitle(entry)}</h2>
-								<div class={entryDateStyles}>{formatDate(entry.created_at)}</div>
+								<h2 class={entryTitleStyles}>{formatRelativeTime(entry.created_at)}</h2>
 							</div>
-							<div class={wordCountStyles}>{entry.word_count} words</div>
+							<div class={characterCountStyles}>{entry.character_count} characters</div>
 						</div>
 						<p class={entryContentStyles}>{truncateContent(entry.content)}</p>
 					</a>

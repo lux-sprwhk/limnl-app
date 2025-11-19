@@ -9,12 +9,12 @@ impl Database {
         let now = Utc::now();
 
         conn.execute(
-            "INSERT INTO mind_dumps (title, content, word_count, created_at, updated_at)
+            "INSERT INTO mind_dumps (title, content, character_count, created_at, updated_at)
              VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
                 input.title,
                 input.content,
-                input.word_count,
+                input.character_count,
                 now.to_rfc3339(),
                 now.to_rfc3339(),
             ],
@@ -26,7 +26,8 @@ impl Database {
             id: Some(id),
             title: input.title,
             content: input.content,
-            word_count: input.word_count,
+            character_count: input.character_count,
+            mood_tags: None,
             created_at: now,
             updated_at: now,
         })
@@ -36,7 +37,7 @@ impl Database {
         let conn = self.get_connection();
 
         let mut stmt = conn.prepare(
-            "SELECT id, title, content, word_count, created_at, updated_at
+            "SELECT id, title, content, character_count, mood_tags, created_at, updated_at
              FROM mind_dumps WHERE id = ?1",
         )?;
 
@@ -45,9 +46,10 @@ impl Database {
                 id: Some(row.get(0)?),
                 title: row.get(1)?,
                 content: row.get(2)?,
-                word_count: row.get(3)?,
-                created_at: row.get::<_, String>(4)?.parse().unwrap(),
-                updated_at: row.get::<_, String>(5)?.parse().unwrap(),
+                character_count: row.get(3)?,
+                mood_tags: row.get(4)?,
+                created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                updated_at: row.get::<_, String>(6)?.parse().unwrap(),
             })
         });
 
@@ -62,7 +64,7 @@ impl Database {
         let conn = self.get_connection();
 
         let query = format!(
-            "SELECT id, title, content, word_count, created_at, updated_at
+            "SELECT id, title, content, character_count, mood_tags, created_at, updated_at
              FROM mind_dumps
              ORDER BY created_at DESC
              LIMIT {} OFFSET {}",
@@ -78,9 +80,10 @@ impl Database {
                     id: Some(row.get(0)?),
                     title: row.get(1)?,
                     content: row.get(2)?,
-                    word_count: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
-                    updated_at: row.get::<_, String>(5)?.parse().unwrap(),
+                    character_count: row.get(3)?,
+                    mood_tags: row.get(4)?,
+                    created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                    updated_at: row.get::<_, String>(6)?.parse().unwrap(),
                 })
             })?
             .collect::<SqlResult<Vec<MindDump>>>()?;
@@ -107,20 +110,20 @@ impl Database {
         if let Some(content) = input.content {
             existing.content = content;
         }
-        if let Some(word_count) = input.word_count {
-            existing.word_count = word_count;
+        if let Some(character_count) = input.character_count {
+            existing.character_count = character_count;
         }
 
         existing.updated_at = now;
 
         conn.execute(
             "UPDATE mind_dumps
-             SET title = ?1, content = ?2, word_count = ?3, updated_at = ?4
+             SET title = ?1, content = ?2, character_count = ?3, updated_at = ?4
              WHERE id = ?5",
             params![
                 existing.title,
                 existing.content,
-                existing.word_count,
+                existing.character_count,
                 existing.updated_at.to_rfc3339(),
                 input.id,
             ],
@@ -143,7 +146,7 @@ impl Database {
         let search_pattern = format!("%{}%", query);
 
         let mut stmt = conn.prepare(
-            "SELECT id, title, content, word_count, created_at, updated_at
+            "SELECT id, title, content, character_count, mood_tags, created_at, updated_at
              FROM mind_dumps
              WHERE title LIKE ?1 OR content LIKE ?1
              ORDER BY created_at DESC",
@@ -155,13 +158,27 @@ impl Database {
                     id: Some(row.get(0)?),
                     title: row.get(1)?,
                     content: row.get(2)?,
-                    word_count: row.get(3)?,
-                    created_at: row.get::<_, String>(4)?.parse().unwrap(),
-                    updated_at: row.get::<_, String>(5)?.parse().unwrap(),
+                    character_count: row.get(3)?,
+                    mood_tags: row.get(4)?,
+                    created_at: row.get::<_, String>(5)?.parse().unwrap(),
+                    updated_at: row.get::<_, String>(6)?.parse().unwrap(),
                 })
             })?
             .collect::<SqlResult<Vec<MindDump>>>()?;
 
         Ok(entries)
+    }
+
+    /// Update mood tags for a mind dump
+    pub fn update_mind_dump_mood_tags(&self, id: i64, mood_tags: Option<String>) -> SqlResult<()> {
+        let conn = self.get_connection();
+        let now = Utc::now();
+
+        conn.execute(
+            "UPDATE mind_dumps SET mood_tags = ?1, updated_at = ?2 WHERE id = ?3",
+            params![mood_tags, now.to_rfc3339(), id],
+        )?;
+
+        Ok(())
     }
 }
