@@ -360,7 +360,7 @@ pub fn create_mind_dump(
     input: CreateMindDumpInput,
     config: LLMConfig,
 ) -> Result<MindDump, String> {
-    // Validate input
+    // Validate input - trim first, then validate
     let trimmed_content = input.content.trim();
     if trimmed_content.is_empty() {
         return Err("Content cannot be empty".to_string());
@@ -371,14 +371,15 @@ pub fn create_mind_dump(
         return Err(format!("Content exceeds maximum length of {} characters", MAX_CHARACTERS));
     }
     
-    if input.character_count != trimmed_content.len() as i32 {
-        return Err("Character count mismatch".to_string());
-    }
+    // Use trimmed length as the source of truth for character_count
+    // This prevents mismatch errors when frontend sends count based on untrimmed content
+    let trimmed_character_count = trimmed_content.len() as i32;
     
     // Create the mind dump first (synchronous DB operation)
-    // Use trimmed content for consistency
+    // Use trimmed content and trimmed character count for consistency
     let mut validated_input = input.clone();
     validated_input.content = trimmed_content.to_string();
+    validated_input.character_count = trimmed_character_count;
     let mind_dump = db.create_mind_dump(validated_input).map_err(|e| e.to_string())?;
     let mind_dump_id = mind_dump.id.ok_or("Mind dump ID not found")?;
 
@@ -405,6 +406,22 @@ pub fn create_mind_dump(
         // Run analysis
         match client::generate_mind_dump_analysis(&content, &config).await {
             Ok(analysis_response) => {
+                // Validate that mind dump still exists before creating analysis
+                // This prevents foreign key constraint errors if user deleted the mind dump
+                match background_db.get_mind_dump(mind_dump_id) {
+                    Ok(Some(_)) => {
+                        // Mind dump exists, proceed with analysis
+                    }
+                    Ok(None) => {
+                        eprintln!("Mind dump {} was deleted before analysis could complete", mind_dump_id);
+                        return;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to verify mind dump {} exists: {}", mind_dump_id, e);
+                        return;
+                    }
+                }
+
                 // Serialize blocker patterns
                 let blocker_patterns_json = if analysis_response.blocker_patterns.is_empty() {
                     None
@@ -412,7 +429,7 @@ pub fn create_mind_dump(
                     serde_json::to_string(&analysis_response.blocker_patterns).ok()
                 };
 
-                // Create analysis entry
+                // Create analysis entry - handle foreign key constraint errors gracefully
                 match background_db.create_mind_dump_analysis(mind_dump_id) {
                     Ok(analysis) => {
                         let analysis_id = match analysis.id {
@@ -455,12 +472,17 @@ pub fn create_mind_dump(
                             }
                         }
 
-                        // Store mood tags
+                        // Store mood tags - verify mind dump still exists
                         if !analysis_response.mood_tags.is_empty() {
-                            let mood_tags_json = serde_json::to_string(&analysis_response.mood_tags)
-                                .unwrap_or_else(|_| "[]".to_string());
-                            if let Err(e) = background_db.update_mind_dump_mood_tags(mind_dump_id, Some(mood_tags_json)) {
-                                eprintln!("Failed to update mood tags: {}", e);
+                            // Double-check mind dump exists before updating
+                            if background_db.get_mind_dump(mind_dump_id).is_ok_and(|r| r.is_some()) {
+                                let mood_tags_json = serde_json::to_string(&analysis_response.mood_tags)
+                                    .unwrap_or_else(|_| "[]".to_string());
+                                if let Err(e) = background_db.update_mind_dump_mood_tags(mind_dump_id, Some(mood_tags_json)) {
+                                    eprintln!("Failed to update mood tags for mind_dump_id {}: {}", mind_dump_id, e);
+                                }
+                            } else {
+                                eprintln!("Mind dump {} was deleted before mood tags could be updated", mind_dump_id);
                             }
                         }
 
@@ -472,7 +494,14 @@ pub fn create_mind_dump(
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to create mind dump analysis: {}", e);
+                        // Check if error is due to foreign key constraint (mind dump deleted)
+                        let error_msg = e.to_string();
+                        if error_msg.contains("FOREIGN KEY") || error_msg.contains("foreign key") {
+                            eprintln!("Mind dump {} was deleted during analysis, skipping analysis creation", mind_dump_id);
+                        } else {
+                            eprintln!("Failed to create mind dump analysis for mind_dump_id {}: {}", mind_dump_id, e);
+                        }
+                        return;
                     }
                 }
             }
